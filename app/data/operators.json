@@ -1,0 +1,4320 @@
+[
+  {
+    "id": "ai-platform.deepseek",
+    "name": "调用deepseek系列模型",
+    "description": "该算子用于按配置的系统提示词和输入媒体调用 DeepSeek 多模态生成接口",
+    "avoidWhen": "没有可访问的 urls，或无法约束模型输出格式时不要使用。",
+    "domains": [
+      "ai-labeling"
+    ],
+    "capabilities": [
+      "ai_platform",
+      "llm",
+      "multimodal"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_model_sync",
+    "inputs": [
+      {
+        "key": "urls",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.http_list",
+        "cardinality": "many",
+        "producers": [
+          "tos.sign（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "系统提示词",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "提示词",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "类型(text / image / video / audio)",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "自动展开",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "true",
+        "constraints": ""
+      },
+      {
+        "key": "视频标注每秒抽帧数",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "2",
+        "constraints": ""
+      },
+      {
+        "key": "视频标注最大帧数",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "使用字段作为提示词",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "字段名",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "单一性(尽可能多次输入结果一致)",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "超时时间(秒)",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "600",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "deepseek_output",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖外部 AI 平台与 urls 字段，JSON 自动展开要求模型输出可解析，不负责事实校验或存储文件"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "ai-platform.gemini",
+    "name": "调用gemini系列模型",
+    "description": "该算子用于读取 TOS 媒体并调用 Gemini 生成文本或结构化结果",
+    "avoidWhen": "输入不是单个 tos_path，或任务要求一次直接处理未展开的路径列表时不要使用。",
+    "domains": [
+      "ai-labeling",
+      "video",
+      "image"
+    ],
+    "capabilities": [
+      "gemini",
+      "llm",
+      "video"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_model_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "提示词",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "自动展开",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "gemini_output",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "仅处理 tos_path 指向的单个媒体，依赖 CDN 签名和外部模型，AutoExpand 要求返回合法 JSON"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "ai-platform.qwen",
+    "name": "获取标题和关键词信息",
+    "description": "该算子用于对图片生成中文标题和关键词",
+    "avoidWhen": "输入固定依赖 tos_path，能力局限于预置提示词的标题关键词抽取，不支持任意结构化任务",
+    "domains": [
+      "ai-labeling",
+      "image"
+    ],
+    "capabilities": [
+      "image_caption",
+      "llm",
+      "qwen"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_model_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "is_internal_model",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "keywords",
+        "type": "String",
+        "semanticType": "collection.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "title",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "source",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "输入固定依赖 tos_path，能力局限于预置提示词的标题关键词抽取，不支持任意结构化任务"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "ai-platform.qwen_tmp1",
+    "name": "调用qwen系列模型",
+    "description": "需要自定义输入字段、输出字段和结构化多模态打标时使用。",
+    "avoidWhen": "尚未确定输出字段或无法保证模型返回合法结构化 JSON 时不要使用。",
+    "domains": [
+      "ai-labeling"
+    ],
+    "capabilities": [
+      "llm",
+      "multimodal",
+      "qwen"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_model_sync",
+    "inputs": [],
+    "config": [
+      {
+        "key": "模型",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "type:select;selections:qwen3.5-flash,qwen3.5-plus;default:qwen3.5-flash"
+      },
+      {
+        "key": "类型",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "type:select;selections:text,image,video,audio;default:image"
+      },
+      {
+        "key": "提示词",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "系统提示词",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "输入字段",
+        "type": "List",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "输出字段",
+        "type": "List",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "抽帧数",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "type:select;selections:1,2,3,4,5,6,7,8,9,10;default:1;advanced"
+      },
+      {
+        "key": "最大帧数",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "advanced"
+      },
+      {
+        "key": "提示词字段名",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "advanced"
+      },
+      {
+        "key": "单一性",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "hints:尽可能多次输入结果一致;advanced"
+      },
+      {
+        "key": "阶段并发",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "advanced;default:64;max:10000"
+      },
+      {
+        "key": "超时时间",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "hints:单位秒;advanced;default:1200"
+      }
+    ],
+    "outputs": [],
+    "risks": [
+      "要求模型返回可解析 JSON，依赖 RPM 限流和外部 AI 平台，不适合未定义输出 schema 的自由文本任务"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "ai-platform.seedream.img2img",
+    "name": "调用seedream系列模型(图生图)",
+    "description": "该算子用于调用 Seedream 图生图模型生成图片并输出结果路径",
+    "avoidWhen": "依赖输入 tos_path 和外部生成服务，会写入新图片，不处理文本到图或复杂批量合成逻辑",
+    "domains": [
+      "ai-labeling",
+      "image"
+    ],
+    "capabilities": [
+      "image_generation",
+      "seedream",
+      "tos"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_model_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "提示词",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "自动展开",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "seedream_output",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖输入 tos_path 和外部生成服务，会写入新图片，不处理文本到图或复杂批量合成逻辑"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "ap_v25.filter",
+    "name": "视频美学打分",
+    "description": "该算子用于抽取视频关键帧并用 AestheticPredictorV2.5 计算美学分后过滤",
+    "avoidWhen": "依赖视频可下载和模型服务，低于阈值会中止 Job，不提供人工审美解释",
+    "domains": [
+      "validation",
+      "video"
+    ],
+    "capabilities": [
+      "aesthetic",
+      "filter",
+      "video"
+    ],
+    "behavior": "validate_or_filter",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "最低分数",
+        "type": "Float",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "是否开启",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "average_ap_score",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖视频可下载和模型服务，低于阈值会中止 Job，不提供人工审美解释"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "cn_clip.artimuse",
+    "name": "通过tos地址得到artimuse分数",
+    "description": "该算子用于调用 ArtiMuse 模型识别图片艺术风格/艺术性分数",
+    "avoidWhen": "仅处理 tos_path 指向的图片，依赖 CN-CLIP 服务，不做内容审核或多图聚合",
+    "domains": [
+      "ai-labeling",
+      "image"
+    ],
+    "capabilities": [
+      "artimuse",
+      "cn_clip",
+      "image"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "artimuse",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "仅处理 tos_path 指向的图片，依赖 CN-CLIP 服务，不做内容审核或多图聚合"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "cn_clip.iqa.video",
+    "name": "通过tos地址得到iqa分数",
+    "description": "该算子用于直接调用视频 IQA 服务评估视频质量分",
+    "avoidWhen": "依赖 tos_path 和外部模型，不抽帧也不解释具体质量缺陷",
+    "domains": [
+      "ai-labeling",
+      "video"
+    ],
+    "capabilities": [
+      "iqa",
+      "quality",
+      "video"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "score",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖 tos_path 和外部模型，不抽帧也不解释具体质量缺陷"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "cn_clip.scbg",
+    "name": "通过tos地址得到纯色背景分类",
+    "description": "该算子用于识别图片是否偏纯色背景并输出背景类型与分数",
+    "avoidWhen": "仅处理单张 TOS 图片，依赖 CN-CLIP 服务，不负责抠图或背景替换",
+    "domains": [
+      "ai-labeling",
+      "image"
+    ],
+    "capabilities": [
+      "background",
+      "cn_clip",
+      "image"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "scbg_score",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "background_type",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "仅处理单张 TOS 图片，依赖 CN-CLIP 服务，不负责抠图或背景替换"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "cnclip.watermark",
+    "name": "通过vid进行视频水印打标，使用qwen35-9b模型",
+    "description": "该算子用于通过 vid 判断视频水印、字幕和 logo 状态",
+    "avoidWhen": "依赖 VOD 下载与 Qwen3VL 服务，只做模型打标，不实际去水印或裁剪视频",
+    "domains": [
+      "ai-labeling",
+      "video"
+    ],
+    "capabilities": [
+      "qwen3vl",
+      "video",
+      "watermark"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "vid",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.vod_id",
+        "cardinality": "one",
+        "producers": [
+          "vod.local_split.tos",
+          "vod.upload",
+          "vod.local_split（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "subtitle_status",
+        "type": "String",
+        "semanticType": "collection.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "manipulate",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "logo",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖 VOD 下载与 Qwen3VL 服务，只做模型打标，不实际去水印或裁剪视频"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "csv.expand",
+    "name": "CSV展开",
+    "description": "该算子用于把 CSV 单字段按分隔符展开成多行字段",
+    "avoidWhen": "只处理配置指定字段的字符串拆分，不做 CSV 文件读取、类型转换或去重",
+    "domains": [
+      "tabular"
+    ],
+    "capabilities": [
+      "csv",
+      "split",
+      "transform"
+    ],
+    "behavior": "fanout",
+    "cardinality": "1:N",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "<待展开字段值>",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "dynamic",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "待展开字段",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "展开后字段",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "分隔符",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "<展开后字段值>",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "dynamic"
+      },
+      {
+        "key": "split_tos_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只处理配置指定字段的字符串拆分，不做 CSV 文件读取、类型转换或去重"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "csv.merge",
+    "name": "CSV合并",
+    "description": "该算子用于遍历 TOS 目录下 CSV 并合并为一个文件",
+    "avoidWhen": "依赖 tos_dir 和对象存储读写，只做表头级合并，不解决字段语义冲突",
+    "domains": [
+      "tabular"
+    ],
+    "capabilities": [
+      "csv",
+      "merge",
+      "tos"
+    ],
+    "behavior": "aggregate",
+    "cardinality": "N:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_dir",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "one",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "merge_tos_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖 tos_dir 和对象存储读写，只做表头级合并，不解决字段语义冲突"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "csv.unique",
+    "name": "CSV去重",
+    "description": "该算子用于按配置字段对 CSV 文件去重并可维护历史 key 文件",
+    "avoidWhen": "会读写 TOS 文件，去重粒度完全依赖配置字段，不做内容相似度判断",
+    "domains": [
+      "tabular"
+    ],
+    "capabilities": [
+      "csv",
+      "dedup",
+      "tos"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "历史key存储地址",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "去重字段",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "排除批次(batch_id多个用逗号分隔)",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "保存到历史key存储地址",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "去重后文件存储地址",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "unique_tos_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "会读写 TOS 文件，去重粒度完全依赖配置字段，不做内容相似度判断"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "eval.filter",
+    "name": "过滤表达式计算",
+    "description": "该算子用于按配置构造简单比较表达式并过滤 Job",
+    "avoidWhen": "仅支持字段与整数阈值的比较，表达式为 false 会中止，不做复杂规则编排",
+    "domains": [
+      "validation"
+    ],
+    "capabilities": [
+      "expr",
+      "filter",
+      "validation"
+    ],
+    "behavior": "validate_or_filter",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "<比较字段值>",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "dynamic",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "比较字段",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "操作符号(> < >= <= =)",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "比较值",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [],
+    "risks": [
+      "仅支持字段与整数阈值的比较，表达式为 false 会中止，不做复杂规则编排"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "exif.get",
+    "name": "获取图片meta信息",
+    "description": "图片已有 tos_path，需要读取宽高、拍摄参数、定位或版式等元数据时使用。",
+    "avoidWhen": "视频宽高应使用 vod.video.get；本算子不会计算 width/height 比值。",
+    "domains": [
+      "image",
+      "metadata"
+    ],
+    "capabilities": [
+      "exif",
+      "image",
+      "metadata"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "输出字段",
+        "type": "List",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "elem_type:select;elem_selections:width,height,exposure_program,exposure_time,f_number,focal_length,flash,metering_mode,white_balance,color_space,lens,make,model,gps_latitude,gps_longitude,gps_altitude,datetime_original,content_creator,dpi,exposure_compensation,iso,layout"
+      }
+    ],
+    "outputs": [
+      {
+        "key": "width",
+        "type": "String",
+        "semanticType": "media.dimension_px",
+        "cardinality": "one"
+      },
+      {
+        "key": "height",
+        "type": "String",
+        "semanticType": "media.dimension_px",
+        "cardinality": "one"
+      },
+      {
+        "key": "exposure_program",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "exposure_time",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "f_number",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "focal_length",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "flash",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "metering_mode",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "white_balance",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "color_space",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "lens",
+        "type": "String",
+        "semanticType": "collection.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "make",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "model",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "gps_latitude",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "gps_longitude",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "gps_altitude",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "datetime_original",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "content_creator",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "dpi",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "exposure_compensation",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "iso",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "layout",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "仅静态解析 TOS 图片，不修改或脱敏 EXIF，缺失字段会为空"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "medium"
+  },
+  {
+    "id": "expr.check",
+    "name": "使用表达式检查",
+    "description": "该算子用于基于配置表达式检查输入字段并过滤 Job",
+    "avoidWhen": "表达式依赖字段可解析和 expr 引擎，失败会中止，不负责修正数据",
+    "domains": [
+      "validation"
+    ],
+    "capabilities": [
+      "expr",
+      "filter",
+      "validation"
+    ],
+    "behavior": "validate_or_filter",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "<输入字段值>",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "dynamic",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "表达式",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "输入字段",
+        "type": "List",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "禁用",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [],
+    "risks": [
+      "表达式依赖字段可解析和 expr 引擎，失败会中止，不负责修正数据"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "ffmpeg.diy",
+    "name": "自定义执行ffmpeg命令",
+    "description": "该算子用于下载单个 TOS 媒体并按配置执行自定义 ffmpeg 参数",
+    "avoidWhen": "命令能力开放且依赖配置正确性，可能耗时并产生新 TOS 文件，不做安全语义校验",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "ffmpeg",
+      "tos",
+      "video"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "<原始文件tos路径值>",
+        "type": "File",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "dynamic",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "原始文件tos路径键名",
+        "type": "String",
+        "required": true,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "目标文件tos路径键名",
+        "type": "String",
+        "required": true,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "参数",
+        "type": "List",
+        "required": true,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "是否使用内存缓存",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "<目标文件tos路径值>",
+        "type": "File",
+        "semanticType": "field.generic",
+        "cardinality": "dynamic"
+      }
+    ],
+    "risks": [
+      "命令能力开放且依赖配置正确性，可能耗时并产生新 TOS 文件，不做安全语义校验"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "ffmpeg.diy.list",
+    "name": "自定义执行ffmpeg命令",
+    "description": "该算子用于对 JSON 列表中的多个 TOS 媒体批量执行自定义 ffmpeg",
+    "avoidWhen": "输入必须是合法路径数组，失败会影响当前 Job，不负责片段顺序语义校验",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "batch",
+      "ffmpeg",
+      "video"
+    ],
+    "behavior": "fanout",
+    "cardinality": "1:N",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "<原始文件tos路径值>",
+        "type": "List",
+        "required": true,
+        "semanticType": "collection.generic",
+        "cardinality": "many",
+        "producers": [
+          "ai-platform.qwen（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "exif.get（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "原始文件tos路径键名",
+        "type": "String",
+        "required": true,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "目标文件tos路径键名",
+        "type": "String",
+        "required": true,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "参数",
+        "type": "List",
+        "required": true,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "是否使用内存缓存",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "<目标文件tos路径值>",
+        "type": "List",
+        "semanticType": "collection.generic",
+        "cardinality": "many"
+      }
+    ],
+    "risks": [
+      "输入必须是合法路径数组，失败会影响当前 Job，不负责片段顺序语义校验"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "hbase.get",
+    "name": "从hbase获取",
+    "description": "该算子用于按 rowkey 从 AI Dataset/HBase 读取配置字段",
+    "avoidWhen": "依赖外部数据服务和字段配置，只做读取，不校验业务含义",
+    "domains": [
+      "hbase"
+    ],
+    "capabilities": [
+      "dataset",
+      "hbase",
+      "read"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "rowkey",
+        "type": "String",
+        "required": true,
+        "semanticType": "record.rowkey",
+        "cardinality": "one",
+        "producers": [
+          "rowkey"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "fields",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "data_type",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "输出字段",
+        "type": "List",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "<hbase列名(动态)>",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "dynamic"
+      }
+    ],
+    "risks": [
+      "依赖外部数据服务和字段配置，只做读取，不校验业务含义"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "hbase.set",
+    "name": "写入hbase",
+    "description": "该算子用于把配置字段以字符串形式写入 AI Dataset/HBase",
+    "avoidWhen": "依赖 rowkey 和外部服务，会产生持久化副作用，不支持复杂类型",
+    "domains": [
+      "hbase"
+    ],
+    "capabilities": [
+      "dataset",
+      "hbase",
+      "write"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "rowkey",
+        "type": "String",
+        "required": true,
+        "semanticType": "record.rowkey",
+        "cardinality": "one",
+        "producers": [
+          "rowkey"
+        ],
+        "system": false
+      },
+      {
+        "key": "<fields中每个字段名>",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "dynamic",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "fields",
+        "type": "String",
+        "required": true,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "data_type",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [],
+    "risks": [
+      "依赖 rowkey 和外部服务，会产生持久化副作用，不支持复杂类型"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "hbase.set.v2",
+    "name": "写入hbase",
+    "description": "该算子用于按字段类型把多类型数据写入 AI Dataset/HBase",
+    "avoidWhen": "依赖字段类型配置和 rowkey，会产生持久化副作用，类型不匹配会失败",
+    "domains": [
+      "hbase"
+    ],
+    "capabilities": [
+      "dataset",
+      "hbase",
+      "write"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "rowkey",
+        "type": "String",
+        "required": true,
+        "semanticType": "record.rowkey",
+        "cardinality": "one",
+        "producers": [
+          "rowkey"
+        ],
+        "system": false
+      },
+      {
+        "key": "<fields中每个字段名>",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "dynamic",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "fields",
+        "type": "List",
+        "required": true,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "fields_type",
+        "type": "List",
+        "required": true,
+        "defaultValue": "",
+        "constraints": "elem_type:select;elem_selections:string,int,uint,float,bool,enum,list<string>"
+      },
+      {
+        "key": "data_type",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "type:select;selections:图片,视频;default:图片"
+      }
+    ],
+    "outputs": [],
+    "risks": [
+      "依赖字段类型配置和 rowkey，会产生持久化副作用，类型不匹配会失败"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "hdr.filter",
+    "name": "HDR格式过滤",
+    "description": "该算子用于识别并过滤 HDR 格式视频",
+    "avoidWhen": "依赖 tos_path 和视频元数据规则，只做格式过滤，不执行 SDR/HDR 转换",
+    "domains": [
+      "validation",
+      "video"
+    ],
+    "capabilities": [
+      "filter",
+      "hdr",
+      "video"
+    ],
+    "behavior": "validate_or_filter",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [],
+    "risks": [
+      "依赖 tos_path 和视频元数据规则，只做格式过滤，不执行 SDR/HDR 转换"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "image.resize",
+    "name": "图片压缩(resize)",
+    "description": "该算子用于按配置缩放/压缩图片并上传新的 TOS 路径",
+    "avoidWhen": "当前主要支持最大边等比压缩，不做裁剪、增强或格式智能选择",
+    "domains": [
+      "image"
+    ],
+    "capabilities": [
+      "image",
+      "resize",
+      "tos"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "File",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "类型(1: 等比压缩)",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "1",
+        "constraints": ""
+      },
+      {
+        "key": "最大边长",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "512",
+        "constraints": ""
+      },
+      {
+        "key": "超时时间(秒)",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "60 * 3",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "image_resize_tos_path",
+        "type": "File",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "当前主要支持最大边等比压缩，不做裁剪、增强或格式智能选择"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "jsonl.agg",
+    "name": "jsonl聚合",
+    "description": "该算子用于把多个 JSONL 文件按配置字段聚合并上传结果",
+    "avoidWhen": "依赖 tos_path 文件内容和输出路径配置，不做 JSON schema 深度校验",
+    "domains": [
+      "tabular"
+    ],
+    "capabilities": [
+      "aggregate",
+      "jsonl",
+      "tos"
+    ],
+    "behavior": "aggregate",
+    "cardinality": "N:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "File",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "field",
+        "type": "String",
+        "required": true,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "output_path",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "agg_tos_path",
+        "type": "File",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖 tos_path 文件内容和输出路径配置，不做 JSON schema 深度校验"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "object_storage.transfer",
+    "name": "对象存储间传输",
+    "description": "该算子用于在配置的对象存储源和目标之间流式搬运对象",
+    "avoidWhen": "缺少源端或目标端凭证时不能使用；不得在建议结果中输出真实 AK/SK。",
+    "domains": [
+      "storage"
+    ],
+    "capabilities": [
+      "cloud",
+      "object_storage",
+      "transfer"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "external_storage_write",
+    "inputs": [
+      {
+        "key": "src_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      },
+      {
+        "key": "dst_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "string.replace_prefix",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "src.ak",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "src.sk",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "src.endpoint",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "src.region",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "dst.ak",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "dst.sk",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "dst.endpoint",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "dst.region",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [],
+    "risks": [
+      "只做 src_path 到 dst_path 的复制，依赖 AK/SK 配置，会写入目标存储"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "rowkey",
+    "name": "根据tos路径生成rowkey",
+    "description": "该算子用于根据 TOS 路径或配置输入字段生成稳定 rowkey",
+    "avoidWhen": "依赖对象存在性/内容信息或字段组合，不保证业务主键跨策略兼容",
+    "domains": [
+      "tabular"
+    ],
+    "capabilities": [
+      "hash",
+      "rowkey",
+      "tos"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "File",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "阶段并发",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "omitempty;min:1;max:128"
+      },
+      {
+        "key": "输入字段",
+        "type": "List",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "超时时间",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "hints:单位秒;advanced;default:1200"
+      }
+    ],
+    "outputs": [
+      {
+        "key": "rowkey",
+        "type": "String",
+        "semanticType": "record.rowkey",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖对象存在性/内容信息或字段组合，不保证业务主键跨策略兼容"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "string.replace_prefix",
+    "name": "替换前缀并添加字段",
+    "description": "该算子用于把 src_path 的前缀替换为目标前缀并写入 dst_path",
+    "avoidWhen": "只做字符串前缀替换，匹配失败可中止，不检查目标对象存在",
+    "domains": [
+      "tabular"
+    ],
+    "capabilities": [
+      "path",
+      "string",
+      "transform"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "src_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "替换前的前缀名",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "替换后的前缀名",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "前缀匹配不上是否丢弃",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "dst_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只做字符串前缀替换，匹配失败可中止，不检查目标对象存在"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "tos.compress.360p",
+    "name": "压缩到360p",
+    "description": "该算子用于把 TOS 视频压缩为 360p 并上传新路径",
+    "avoidWhen": "依赖 ffmpeg 和对象存储，会生成派生文件，不保留完整清晰度",
+    "domains": [
+      "storage",
+      "video"
+    ],
+    "capabilities": [
+      "compress",
+      "tos",
+      "video"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "自动重命名",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "360p_tos_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖 ffmpeg 和对象存储，会生成派生文件，不保留完整清晰度"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "tos.exist",
+    "name": "检查文件是否存在",
+    "description": "该算子用于校验配置输入字段中的 TOS 对象是否存在且可读取头信息",
+    "avoidWhen": "只做存在性检查，失败会中止，不校验文件内容",
+    "domains": [
+      "storage",
+      "validation"
+    ],
+    "capabilities": [
+      "existence",
+      "tos",
+      "validation"
+    ],
+    "behavior": "validate_or_filter",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "<动态输入字段>",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "dynamic",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [],
+    "risks": [
+      "只做存在性检查，失败会中止，不校验文件内容"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "tos.external_sign",
+    "name": "生成第三方TOS签名(直签)",
+    "description": "需要使用指定 TOS 账号生成第三方可访问的直签 URL 时使用。",
+    "avoidWhen": "可以使用内部 CDN 签名时优先考虑 tos.sign，避免在配置中散落 AK/SK。",
+    "domains": [
+      "storage",
+      "delivery"
+    ],
+    "capabilities": [
+      "sign",
+      "tos",
+      "url"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "<field值>",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "dynamic",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "region",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "endpoint",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "AK",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "SK",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "field",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "tos_external_sign_url",
+        "type": "String",
+        "semanticType": "media_locator.http",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖 AK/SK/region 配置和字段路径，不检查业务授权范围"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "tos.list",
+    "name": "遍历TOS目录，输出指定的后缀、文件名等",
+    "description": "该算子用于遍历 TOS 目录并按后缀过滤后拆分输出对象路径",
+    "avoidWhen": "只列举对象，不读取内容或递归处理复杂目录语义",
+    "domains": [
+      "storage"
+    ],
+    "capabilities": [
+      "list",
+      "split",
+      "tos"
+    ],
+    "behavior": "fanout",
+    "cardinality": "1:N",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "dir",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "one",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "允许的文件后缀(例如.mp4),使用,分隔",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "允许的文件名",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只列举对象，不读取内容或递归处理复杂目录语义"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "tos.sign",
+    "name": "生成TOS签名(cdn)",
+    "description": "已有一个或多个 TOS 字段，需要生成有时效的 CDN 访问链接时使用。",
+    "avoidWhen": "依赖域名/过期时间配置，不校验内容合规性或长期可用性",
+    "domains": [
+      "storage",
+      "delivery"
+    ],
+    "capabilities": [
+      "cdn",
+      "sign",
+      "tos"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "<Fields中各字段值>",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "dynamic",
+        "producers": [
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.blackborder.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "字段(英文逗号分割多个字段名)",
+        "type": "String",
+        "required": false,
+        "defaultValue": "\"tos_path\"",
+        "constraints": ""
+      },
+      {
+        "key": "过期时间(秒)",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "3600 * 24 * 7",
+        "constraints": ""
+      },
+      {
+        "key": "域名",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "别名",
+        "type": "String",
+        "required": false,
+        "defaultValue": "\"common\"",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "tos_sign_urls",
+        "type": "String",
+        "semanticType": "media_locator.http_list",
+        "cardinality": "many"
+      }
+    ],
+    "risks": [
+      "依赖域名/过期时间配置，不校验内容合规性或长期可用性"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "tos.unzip",
+    "name": "解压tos的压缩包",
+    "description": "该算子用于解压 TOS 压缩包并上传解压结果路径",
+    "avoidWhen": "依赖压缩格式和并发配置，会写入多个对象，不做病毒扫描",
+    "domains": [
+      "storage"
+    ],
+    "capabilities": [
+      "archive",
+      "tos",
+      "unzip"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "最大并发处理数",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "8",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "unzip_tos_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖压缩格式和并发配置，会写入多个对象，不做病毒扫描"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "tos.validate",
+    "name": "检查文件格式",
+    "description": "该算子用于按字段校验 TOS 文件格式是否符合预期",
+    "avoidWhen": "主要依赖路径/验证器规则，不做深度媒体解码或内容审核",
+    "domains": [
+      "storage",
+      "validation"
+    ],
+    "capabilities": [
+      "file_type",
+      "tos",
+      "validation"
+    ],
+    "behavior": "validate_or_filter",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "macro_events_tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      },
+      {
+        "key": "mouse_move_by_macro_events_tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      },
+      {
+        "key": "mouse_move_to_macro_events_tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      },
+      {
+        "key": "system_info_tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      },
+      {
+        "key": "video_km_frames_tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      },
+      {
+        "key": "fps_tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      },
+      {
+        "key": "pc_tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [],
+    "risks": [
+      "主要依赖路径/验证器规则，不做深度媒体解码或内容审核"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "video_cls.url",
+    "name": "经过vid得到分类结果",
+    "description": "该算子用于根据视频 URL 调用分类模型并输出 top 分类标签",
+    "avoidWhen": "输入是可访问 url，不负责 VOD 解析或视频下载，分类结果需由下游业务解释",
+    "domains": [
+      "ai-labeling",
+      "video"
+    ],
+    "capabilities": [
+      "classification",
+      "cn_clip",
+      "video"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "url",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.http",
+        "cardinality": "one",
+        "producers": [
+          "vod_workflow",
+          "tos.external_sign（需字段映射）",
+          "vod.audio.asr.submit（需字段映射）",
+          "vod.transcoding.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "lr_label_top",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "zs_label_top",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "输入是可访问 url，不负责 VOD 解析或视频下载，分类结果需由下游业务解释"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod_workflow",
+    "name": "经过vid工作流得到视频下载链接",
+    "description": "该算子用于通过 vid 启动/查询 VOD 工作流并获取下载 URL",
+    "avoidWhen": "强依赖 VOD 工作流状态，不下载媒体或生成新文件",
+    "domains": [
+      "storage"
+    ],
+    "capabilities": [
+      "url",
+      "vod",
+      "workflow"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "sync",
+    "inputs": [
+      {
+        "key": "vid",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.vod_id",
+        "cardinality": "one",
+        "producers": [
+          "vod.local_split.tos",
+          "vod.upload",
+          "vod.local_split（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "work_flow_id",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "definitions",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "url",
+        "type": "String",
+        "semanticType": "media_locator.http",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "强依赖 VOD 工作流状态，不下载媒体或生成新文件"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.audio.asr.query",
+    "name": "ASR转写查询",
+    "description": "该算子用于根据 ASR task_id 查询转写结果并写出 asr 字段",
+    "avoidWhen": "只查询已提交任务，不提交音频或轮询到完成",
+    "domains": [
+      "audio",
+      "ai-labeling"
+    ],
+    "capabilities": [
+      "asr",
+      "audio",
+      "vod"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "async_poll",
+    "inputs": [
+      {
+        "key": "asr_task_id",
+        "type": "String",
+        "required": true,
+        "semanticType": "task.id",
+        "cardinality": "one",
+        "producers": [
+          "vod.audio.asr.submit",
+          "vod.transcoding.start（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "asr",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只查询已提交任务，不提交音频或轮询到完成"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.audio.asr.submit",
+    "name": "ASR转写提交",
+    "description": "该算子用于把音频 TOS 路径提交到 VOD/ASR 并返回任务 ID",
+    "avoidWhen": "只提交任务，不解析最终转写文本",
+    "domains": [
+      "audio",
+      "ai-labeling"
+    ],
+    "capabilities": [
+      "asr",
+      "audio",
+      "vod"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "async_submit",
+    "inputs": [
+      {
+        "key": "audio_tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.list（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.upload.tos（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "asr_task_id",
+        "type": "String",
+        "semanticType": "task.id",
+        "cardinality": "one"
+      },
+      {
+        "key": "audio_url",
+        "type": "String",
+        "semanticType": "media_locator.http",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只提交任务，不解析最终转写文本"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.audio.get",
+    "name": "音频信息获取",
+    "description": "该算子用于从媒体文件中提取音频编码、声道、时长、码率等信息",
+    "avoidWhen": "只读取首个音频流元数据，不转码或检测人声",
+    "domains": [
+      "audio",
+      "metadata",
+      "video"
+    ],
+    "capabilities": [
+      "audio",
+      "ffprobe",
+      "metadata"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "输出字段",
+        "type": "List",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "elem_type:select;elem_selections:audio_format,audio_codec_name,audio_codec_long_name,audio_channels,audio_channel_layout,audio_duration,audio_bit_rate,audio_sample_rate,audio_bit_depth"
+      },
+      {
+        "key": "自动重命名",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "audio_codec_name",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "audio_codec_long_name",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "audio_channels",
+        "type": "String",
+        "semanticType": "collection.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "audio_channel_layout",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "audio_duration",
+        "type": "String",
+        "semanticType": "media.duration",
+        "cardinality": "one"
+      },
+      {
+        "key": "audio_bit_rate",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "audio_sample_rate",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只读取首个音频流元数据，不转码或检测人声"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "medium"
+  },
+  {
+    "id": "vod.crop.blackborder.crop",
+    "name": "通过黑边剪裁参数进行黑边剪裁",
+    "description": "该算子用于按 black_border_crop 参数裁剪视频黑边并上传结果",
+    "avoidWhen": "依赖上游裁剪参数和 ffmpeg，参数为空时透传原路径",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "black_border",
+      "crop",
+      "video"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      },
+      {
+        "key": "black_border_crop",
+        "type": "String",
+        "required": true,
+        "semanticType": "field.generic",
+        "cardinality": "one",
+        "producers": [
+          "vod.crop.blackborder.get",
+          "ai-platform.deepseek（需字段映射）",
+          "ai-platform.gemini（需字段映射）",
+          "ai-platform.qwen（需字段映射）",
+          "ai-platform.seedream.img2img（需字段映射）",
+          "ap_v25.filter（需字段映射）",
+          "cn_clip.artimuse（需字段映射）",
+          "cn_clip.iqa.video（需字段映射）",
+          "cn_clip.scbg（需字段映射）",
+          "cnclip.watermark（需字段映射）",
+          "csv.expand（需字段映射）",
+          "exif.get（需字段映射）",
+          "ffmpeg.diy（需字段映射）",
+          "hbase.get（需字段映射）",
+          "video_cls.url（需字段映射）",
+          "vod.audio.asr.query（需字段映射）",
+          "vod.audio.get（需字段映射）",
+          "vod.crop.scene.detect_and_split（需字段映射）",
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）",
+          "vod.video.get（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "命令执行超时时间(分钟)",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "30",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "black_border_cropped_tos_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖上游裁剪参数和 ffmpeg，参数为空时透传原路径"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.crop.blackborder.get",
+    "name": "获取黑边的剪裁参数",
+    "description": "该算子用于用 ffmpeg cropdetect 获取视频黑边裁剪参数",
+    "avoidWhen": "只输出检测参数，不执行裁剪或判断内容构图",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "black_border",
+      "detect",
+      "video"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "black_border_crop",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只输出检测参数，不执行裁剪或判断内容构图"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.crop.scene.detect_and_split",
+    "name": "检测视频场景并切分视频",
+    "description": "需要按镜头或场景边界检测并切分视频时使用。",
+    "avoidWhen": "客户要求严格固定 10–15 秒片段时不要单独依赖场景切分。",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "scene_detect",
+      "split",
+      "video"
+    ],
+    "behavior": "fanout",
+    "cardinality": "1:N",
+    "executionPattern": "sync_fanout",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "自动切分(true:开启/false:关闭)",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "true",
+        "constraints": ""
+      },
+      {
+        "key": "过滤最小场景时长(秒) 0:不进行过滤",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "0",
+        "constraints": ""
+      },
+      {
+        "key": "跳过视频开头多少秒进行场景检测 0:不进行跳过",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "0",
+        "constraints": ""
+      },
+      {
+        "key": "忽略视频结尾多少秒进行场景检测 0:不进行忽略",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "0",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "scene_split_paths",
+        "type": "String",
+        "semanticType": "collection.generic",
+        "cardinality": "many"
+      },
+      {
+        "key": "scene_split_count",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "scene_count",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖配置阈值和 ffmpeg，场景检测不是语义分镜识别"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.frame.extract",
+    "name": "视频抽帧",
+    "description": "该算子用于按 FPS、秒、总数或中间帧策略抽取视频帧并上传 TOS",
+    "avoidWhen": "依赖 ffmpeg 和策略配置，会产生图片文件，不做图像识别",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "ffmpeg",
+      "frame_extract",
+      "video"
+    ],
+    "behavior": "fanout",
+    "cardinality": "1:N",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "策略",
+        "type": "String",
+        "required": false,
+        "defaultValue": "StrategySecond",
+        "constraints": ""
+      },
+      {
+        "key": "值",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "1",
+        "constraints": ""
+      },
+      {
+        "key": "输出格式",
+        "type": "String",
+        "required": false,
+        "defaultValue": "\"%04d.jpg\"",
+        "constraints": ""
+      },
+      {
+        "key": "超时时间(秒)",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "阶段并发",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ";advanced;default:64;max:512"
+      },
+      {
+        "key": "阶段QPS",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "omitempty;advanced;max:128"
+      }
+    ],
+    "outputs": [
+      {
+        "key": "extract_frame_count",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "extract_frame_tos_paths",
+        "type": "String",
+        "semanticType": "media_locator.tos_list",
+        "cardinality": "many"
+      }
+    ],
+    "risks": [
+      "依赖 ffmpeg 和策略配置，会产生图片文件，不做图像识别"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.local_split",
+    "name": "获取vod视频进行本地切分",
+    "description": "该算子用于通过 vid 下载 VOD 视频并本地切分后上传片段到 VOD",
+    "avoidWhen": "依赖 VOD 下载/上传和 ffmpeg，会拆分成多个 vid，不处理 TOS 输入",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "split",
+      "video",
+      "vod"
+    ],
+    "behavior": "fanout",
+    "cardinality": "1:N",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "vid",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.vod_id",
+        "cardinality": "one",
+        "producers": [
+          "vod.local_split.tos",
+          "vod.upload"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "切割时长",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "阶段并发",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "min:10;max:400;default:30"
+      },
+      {
+        "key": "使用内存工作目录",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "split_vid",
+        "type": "String",
+        "semanticType": "media_locator.vod_id",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖 VOD 下载/上传和 ffmpeg，会拆分成多个 vid，不处理 TOS 输入"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.local_split.tos",
+    "name": "获取tos视频进行本地切分",
+    "description": "该算子用于从 TOS 视频本地切分并把片段上传到 VOD",
+    "avoidWhen": "依赖 rowkey、tos_path 和 ffmpeg，只输出片段 vid",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "split",
+      "tos",
+      "video"
+    ],
+    "behavior": "fanout",
+    "cardinality": "1:N",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      },
+      {
+        "key": "rowkey",
+        "type": "String",
+        "required": true,
+        "semanticType": "record.rowkey",
+        "cardinality": "one",
+        "producers": [
+          "rowkey"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "切割时长",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "阶段并发",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "min:10;max:400;default:30"
+      },
+      {
+        "key": "使用内存工作目录",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "vid",
+        "type": "String",
+        "semanticType": "media_locator.vod_id",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "依赖 rowkey、tos_path 和 ffmpeg，只输出片段 vid"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.split",
+    "name": "视频分割",
+    "description": "已有 tos_path，需要按固定时长把一个视频切成多个 TOS 片段时使用。",
+    "avoidWhen": "只有 vid 且不希望转回 TOS 时优先评估 vod.local_split；按镜头切分使用 vod.crop.scene.detect_and_split。",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "ffmpeg",
+      "split",
+      "video"
+    ],
+    "behavior": "fanout",
+    "cardinality": "1:N",
+    "executionPattern": "sync_fanout",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "编码模式",
+        "type": "String",
+        "required": false,
+        "defaultValue": "EncodeModeCopy",
+        "constraints": ""
+      },
+      {
+        "key": "片段时长(秒)",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "60",
+        "constraints": ""
+      },
+      {
+        "key": "超时时间(分钟)",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "阶段并发",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "omitempty;advanced;default:16"
+      },
+      {
+        "key": "使用内存加速",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      },
+      {
+        "key": "分割类型",
+        "type": "String",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "split_segment_count",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "split_segment_tos_paths",
+        "type": "String",
+        "semanticType": "media_locator.tos_list",
+        "cardinality": "many"
+      }
+    ],
+    "risks": [
+      "输出 split_segment_tos_paths 是列表语义，进入单媒体算子前必须展开为逐条 tos_path。",
+      "要保证每段不超过目标时长时，分割类型应使用 max；默认合并尾段逻辑可能产生长于目标的片段。",
+      "copy 编码更快但切点可能受关键帧影响；需要精确切点时使用 encode。"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.transcoding.get",
+    "name": "获取预览视频",
+    "description": "已有 vid 且需要人工平台可访问的预览 URL 时使用。",
+    "avoidWhen": "只查询已有转码结果，不触发转码或等待任务",
+    "domains": [
+      "video",
+      "delivery"
+    ],
+    "capabilities": [
+      "transcoding",
+      "url",
+      "vod"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "vid",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.vod_id",
+        "cardinality": "one",
+        "producers": [
+          "vod.local_split.tos",
+          "vod.upload",
+          "vod.local_split（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "清晰度(选填240p/360p/480p/720p)",
+        "type": "String",
+        "required": false,
+        "defaultValue": "\"360p\"",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "preview_url",
+        "type": "String",
+        "semanticType": "media_locator.http",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只查询已有转码结果，不触发转码或等待任务"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.transcoding.query",
+    "name": "vod视频转码查询是否成功",
+    "description": "该算子用于查询 VOD 工作流转码任务状态",
+    "avoidWhen": "需要单节点阻塞到转码完成时优先使用 vod.transcoding.query.v2。",
+    "domains": [
+      "video",
+      "delivery"
+    ],
+    "capabilities": [
+      "query",
+      "transcoding",
+      "vod"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "async_poll_once",
+    "inputs": [
+      {
+        "key": "runid",
+        "type": "String",
+        "required": true,
+        "semanticType": "task.id",
+        "cardinality": "one",
+        "producers": [
+          "vod.transcoding.start",
+          "vod.audio.asr.submit（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [],
+    "risks": [
+      "只做单次查询，不阻塞等待完成或获取播放地址"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.transcoding.query.v2",
+    "name": "vod视频转码查询是否成功，阻塞直到完成或超时",
+    "description": "该算子用于阻塞轮询 VOD 转码任务直到完成或超时",
+    "avoidWhen": "调用方已有独立轮询调度时不要占用节点阻塞等待。",
+    "domains": [
+      "video",
+      "delivery"
+    ],
+    "capabilities": [
+      "transcoding",
+      "vod",
+      "wait"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "async_wait_until_done",
+    "inputs": [
+      {
+        "key": "runid",
+        "type": "String",
+        "required": true,
+        "semanticType": "task.id",
+        "cardinality": "one",
+        "producers": [
+          "vod.transcoding.start",
+          "vod.audio.asr.submit（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "超时实际单位秒",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "30 * 60",
+        "constraints": ""
+      }
+    ],
+    "outputs": [],
+    "risks": [
+      "会占用执行时间，依赖 runid，不返回预览 URL"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.transcoding.start",
+    "name": "vod视频触发转码",
+    "description": "该算子用于对 vid 启动 VOD 转码工作流并返回 runid",
+    "avoidWhen": "只触发任务，不等待完成或下载结果",
+    "domains": [
+      "video",
+      "delivery"
+    ],
+    "capabilities": [
+      "start",
+      "transcoding",
+      "vod"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "async_submit",
+    "inputs": [
+      {
+        "key": "vid",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.vod_id",
+        "cardinality": "one",
+        "producers": [
+          "vod.local_split.tos",
+          "vod.upload",
+          "vod.local_split（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "清晰度(选填240p/360p/480p/720p)",
+        "type": "String",
+        "required": false,
+        "defaultValue": "\"360p\"",
+        "constraints": ""
+      },
+      {
+        "key": "阶段QPS",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "min:10;max:200;default:100"
+      }
+    ],
+    "outputs": [
+      {
+        "key": "runid",
+        "type": "String",
+        "semanticType": "task.id",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只触发任务，不等待完成或下载结果"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.upload",
+    "name": "tos视频上传vod",
+    "description": "只有 tos_path，而下游算子需要 vid 时使用。",
+    "avoidWhen": "下游直接接受 tos_path 时不要为转换而转换。",
+    "domains": [
+      "video",
+      "storage"
+    ],
+    "capabilities": [
+      "tos",
+      "upload",
+      "vod"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "自动重命名",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "false",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "vid",
+        "type": "String",
+        "semanticType": "media_locator.vod_id",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "会产生 VOD 资产，依赖对象可读，不做转码质量控制"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.upload.tos",
+    "name": "vod视频传到tos",
+    "description": "只有 vid，而下游算子需要 tos_path 时使用。",
+    "avoidWhen": "已有可用 tos_path 时不要重复传输。",
+    "domains": [
+      "video",
+      "storage"
+    ],
+    "capabilities": [
+      "download",
+      "tos",
+      "vod"
+    ],
+    "behavior": "transform_or_write",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "vid",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.vod_id",
+        "cardinality": "one",
+        "producers": [
+          "vod.local_split.tos",
+          "vod.upload",
+          "vod.local_split（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [],
+    "outputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "会产生对象存储文件，依赖 VOD 下载地址，不做视频内容处理"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.video.get",
+    "name": "视频信息获取",
+    "description": "视频已有 tos_path，需要一次获取宽高、时长、帧率、码率和编码格式时使用。",
+    "avoidWhen": "图片元数据应使用 exif.get；本算子不会计算宽高比。",
+    "domains": [
+      "video",
+      "metadata"
+    ],
+    "capabilities": [
+      "ffprobe",
+      "metadata",
+      "video"
+    ],
+    "behavior": "enrich",
+    "cardinality": "1:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_path",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos",
+        "cardinality": "one",
+        "producers": [
+          "tos.list",
+          "vod.upload.tos",
+          "csv.expand（需字段映射）",
+          "csv.merge（需字段映射）",
+          "csv.unique（需字段映射）",
+          "image.resize（需字段映射）",
+          "jsonl.agg（需字段映射）",
+          "string.replace_prefix（需字段映射）",
+          "tos.compress.360p（需字段映射）",
+          "tos.unzip（需字段映射）",
+          "vod.crop.blackborder.crop（需字段映射）",
+          "vod.video.merge（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "输出字段",
+        "type": "List",
+        "required": false,
+        "defaultValue": "",
+        "constraints": "elem_type:select;elem_selections:duration,height,width,bit_rate,r_frame_rate,avg_frame_rate,fps,pix_fmt,color_range,color_primaries,format,format_name,format_long_name,bits_per_raw_sample,video_codec,size,file_size,layout"
+      },
+      {
+        "key": "自动重命名",
+        "type": "Boolean",
+        "required": false,
+        "defaultValue": "",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "duration",
+        "type": "String",
+        "semanticType": "media.duration",
+        "cardinality": "one"
+      },
+      {
+        "key": "height",
+        "type": "String",
+        "semanticType": "media.dimension_px",
+        "cardinality": "one"
+      },
+      {
+        "key": "width",
+        "type": "String",
+        "semanticType": "media.dimension_px",
+        "cardinality": "one"
+      },
+      {
+        "key": "bit_rate",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "r_frame_rate",
+        "type": "String",
+        "semanticType": "video.frame_rate",
+        "cardinality": "one"
+      },
+      {
+        "key": "avg_frame_rate",
+        "type": "String",
+        "semanticType": "video.frame_rate",
+        "cardinality": "one"
+      },
+      {
+        "key": "fps",
+        "type": "String",
+        "semanticType": "video.frame_rate",
+        "cardinality": "one"
+      },
+      {
+        "key": "pix_fmt",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "color_range",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "color_primaries",
+        "type": "String",
+        "semanticType": "collection.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "format_name",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "format_long_name",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "bits_per_raw_sample",
+        "type": "String",
+        "semanticType": "field.generic",
+        "cardinality": "one"
+      },
+      {
+        "key": "nb_frames",
+        "type": "String",
+        "semanticType": "collection.generic",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "只读首个视频流/格式信息，不做质量评分或合规过滤"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  },
+  {
+    "id": "vod.video.merge",
+    "name": "合并多个视频文件",
+    "description": "该算子用于把多个视频 TOS 路径下载后合并并上传合并结果",
+    "avoidWhen": "输入顺序和编码兼容性由上游保证，不做内容对齐",
+    "domains": [
+      "video"
+    ],
+    "capabilities": [
+      "ffmpeg",
+      "merge",
+      "video"
+    ],
+    "behavior": "aggregate",
+    "cardinality": "N:1",
+    "executionPattern": "external_service_sync",
+    "inputs": [
+      {
+        "key": "tos_paths",
+        "type": "String",
+        "required": true,
+        "semanticType": "media_locator.tos_list",
+        "cardinality": "many",
+        "producers": [
+          "vod.frame.extract（需字段映射）",
+          "vod.split（需字段映射）"
+        ],
+        "system": false
+      }
+    ],
+    "config": [
+      {
+        "key": "命令执行超时时间(分钟)",
+        "type": "Int",
+        "required": false,
+        "defaultValue": "30",
+        "constraints": ""
+      }
+    ],
+    "outputs": [
+      {
+        "key": "merged_tos_path",
+        "type": "String",
+        "semanticType": "media_locator.tos",
+        "cardinality": "one"
+      }
+    ],
+    "risks": [
+      "输入顺序和编码兼容性由上游保证，不做内容对齐"
+    ],
+    "verifiedAt": "2026-06-30",
+    "confidence": "high"
+  }
+]

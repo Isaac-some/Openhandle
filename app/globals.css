@@ -1,0 +1,153 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+:root {
+  --canvas: oklch(0.985 0.003 255);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.235 0.025 255);
+  --surface: oklch(0.975 0.004 80);
+  --surface-strong: oklch(0.952 0.006 80);
+  --surface-hover: oklch(0.955 0.008 80);
+  --muted-foreground: oklch(0.47 0.02 255);
+  --placeholder: oklch(0.56 0.015 255);
+  --border: oklch(0.90 0.008 255);
+  --border-strong: oklch(0.83 0.012 255);
+  --border-emphasis: oklch(0.67 0.025 255);
+  --primary: oklch(0.62 0.15 80);
+  --primary-hover: oklch(0.56 0.145 80);
+  --primary-strong: oklch(0.43 0.11 80);
+  --primary-soft: oklch(0.92 0.055 80 / 0.7);
+  --connection: oklch(0.52 0.16 255);
+  --focus: oklch(0.52 0.16 255);
+  --focus-soft: oklch(0.82 0.075 255 / 0.55);
+  --ring: oklch(0.52 0.16 255);
+  --operator-surface: oklch(0.992 0.004 245);
+  --operator-soft: oklch(0.965 0.016 245);
+  --operator-border: oklch(0.83 0.035 245);
+  --operator-strong: oklch(0.40 0.065 245);
+  --control-surface: oklch(0.992 0.004 305);
+  --control-soft: oklch(0.968 0.015 305);
+  --control-border: oklch(0.84 0.032 305);
+  --control-strong: oklch(0.42 0.06 305);
+  --terminal-surface: oklch(0.992 0.004 155);
+  --terminal-soft: oklch(0.968 0.018 155);
+  --terminal-border: oklch(0.84 0.04 155);
+  --terminal-strong: oklch(0.40 0.07 155);
+  --flow-surface: oklch(0.985 0.003 255 / 0.76);
+  --flow-border: oklch(0.78 0.015 255);
+  --success: oklch(0.52 0.145 155);
+  --warning: oklch(0.67 0.15 80);
+  --warning-strong: oklch(0.43 0.11 80);
+  --warning-soft: oklch(0.95 0.04 80);
+  --warning-border: oklch(0.78 0.10 80);
+  --danger: oklch(0.52 0.19 25);
+  --danger-strong: oklch(0.46 0.19 25);
+  --danger-soft: oklch(0.96 0.035 25);
+  --danger-border: oklch(0.78 0.10 25);
+  --shadow-node: 0 4px 8px oklch(0.235 0.025 255 / 0.1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  text-rendering: optimizeLegibility;
+}
+button, input, textarea, select { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+::selection { background: oklch(0.90 0.07 80); color: var(--foreground); }
+
+.react-flow__node { border-radius: 10px; }
+.react-flow__node-flowGroup { border-radius: 12px; }
+.react-flow__node.dragging article { transform: scale(1.025); box-shadow: 0 6px 8px oklch(0.235 0.025 255 / 0.14); }
+.react-flow__node:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.workflow-handle {
+  width: 28px !important;
+  height: 28px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+.workflow-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: var(--connection);
+  transform: translate(-50%, -50%);
+  transition: width 150ms ease, height 150ms ease, box-shadow 150ms ease;
+}
+.workflow-handle:hover::after,
+.workflow-handle:focus-visible::after {
+  width: 14px;
+  height: 14px;
+  box-shadow: 0 0 0 4px var(--focus-soft);
+}
+.workflow-handle:focus-visible { outline: none; }
+.react-flow__edge-path { stroke-linecap: round; }
+.react-flow__connection-path { stroke: var(--primary); stroke-width: 2; stroke-dasharray: 5 4; }
+.react-flow__controls button { width: 30px; height: 30px; border-bottom-color: var(--border); color: var(--foreground); }
+.react-flow__controls button:hover { background: var(--surface-hover); }
+.react-flow__controls button:focus-visible { outline: 2px solid var(--ring); outline-offset: -3px; }
+.react-flow__minimap { overflow: hidden; }
+.react-flow__attribution { display: none; }
+.workflow-canvas--pan .react-flow__pane { cursor: grab; }
+.workflow-canvas--pan .react-flow__pane:active { cursor: grabbing; }
+.workflow-canvas--select .react-flow__pane { cursor: crosshair; }
+
+.workflow-edge-path {
+  fill: none;
+  stroke-width: 1.7;
+  stroke-dasharray: 8 6;
+  transition: stroke 180ms ease, stroke-width 180ms ease, filter 180ms ease;
+}
+.workflow-edge-path--default { stroke: var(--connection); opacity: 0.66; }
+.workflow-edge-path--selected { stroke: var(--connection); stroke-width: 2.3; opacity: 1; filter: drop-shadow(0 0 3px var(--focus-soft)); animation: workflow-dash 1.2s linear infinite; }
+.workflow-edge-path--invalid { stroke: var(--danger); opacity: 0.92; }
+.workflow-edge-path--mismatch { stroke: var(--warning); stroke-width: 2.2; opacity: 1; }
+.workflow-edge-mismatch-glow {
+  stroke: var(--warning);
+  stroke-width: 8;
+  stroke-linecap: round;
+  opacity: 0.12;
+  animation: workflow-warning-breathe 1.7s ease-in-out infinite;
+}
+
+@keyframes workflow-dash {
+  to { stroke-dashoffset: -14; }
+}
+
+@keyframes workflow-warning-breathe {
+  0%, 100% { opacity: 0.08; stroke-width: 6; }
+  50% { opacity: 0.24; stroke-width: 10; }
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; background-color: oklch(0.73 0.01 255); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .workflow-edge-path,
+  .workflow-edge-mismatch-glow { animation: none !important; }
+}
