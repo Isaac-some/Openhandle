@@ -3,10 +3,12 @@ name: Agent Workflow Builder
 description: 为内部 Agent 处理路径提供清晰、可追溯的亮色编排工作台
 colors:
   canvas-white: "oklch(1 0 0)"
-  panel-gray: "oklch(0.975 0.004 80)"
-  ink-blue: "oklch(0.235 0.025 255)"
-  muted-ink: "oklch(0.50 0.018 255)"
-  honey-action: "oklch(0.62 0.15 80)"
+  canvas-gray: "oklch(0.9846 0.0017 247.84)"
+  panel-gray: "oklch(0.9846 0.0017 247.84)"
+  ink-blue: "oklch(0.2101 0.0318 264.66)"
+  muted-ink: "oklch(0.4918 0.0171 264.41)"
+  action-blue: "oklch(0.5987 0.2194 259.04)"
+  action-blue-strong: "oklch(0.5044 0.2095 260.97)"
   branch-blue: "oklch(0.57 0.18 255)"
   success-green: "oklch(0.57 0.15 155)"
   warning-amber: "oklch(0.68 0.15 80)"
@@ -39,7 +41,7 @@ spacing:
   xl: "24px"
 components:
   button-primary:
-    backgroundColor: "{colors.honey-action}"
+    backgroundColor: "{colors.action-blue-strong}"
     textColor: "{colors.canvas-white}"
     rounded: "{rounded.md}"
     padding: "8px 14px"
@@ -56,26 +58,27 @@ components:
 
 **Creative North Star: “明亮的运行控制台”**
 
-这是一个在白天办公环境中长时间使用的生产力工具。纯白画布、分层浅灰面板和深墨蓝文字保持高可读性；蜂蜜金只标记主操作和当前选中态。业务节点通过节制的类型色区分，但内容层级仍由排版、空间和标签建立。
+这是一个在白天办公环境中长时间使用的生产力工具。冷白画布、纯白表面、蓝灰边界和深墨蓝文字保持高可读性；晴蓝只标记主操作和当前选中态。业务节点通过节制的类型色区分，但内容层级仍由排版、空间和标签建立。
 
 **Key Characteristics:** 高密度、强对齐、低装饰、状态可解释、画布优先。
 
 ## Colors
 
-亮色中性表面承载主要信息，蜂蜜金提供一个罕见但稳定的操作锚点。节点身份色只保留业务算子、平台控制、启动/结果三组低饱和浅色；Enrich、Filter、Transform、IO 依靠图标和文字区分。
+冷白中性表面承载主要信息，晴蓝提供一个罕见但稳定的操作锚点。节点身份色只保留业务算子、平台控制、启动/结果三组低饱和浅色；Enrich、Filter、Transform、IO 依靠图标和文字区分。
 
 ### Primary
-- **Honey Action** (`oklch(0.62 0.15 80)`): 仅用于生成工作流、选中节点和当前导航，单屏占比不超过 10%。
+- **Action Blue** (`oklch(0.5987 0.2194 259.04)` / `#1677FF`): 用于当前选择和关键交互；白字实心按钮使用更深的 `#0958D9` 以满足正文对比度，单屏占比不超过 10%。
 
 ### Secondary
 - **Branch Blue** (`oklch(0.57 0.18 255)`): 连线、可连接端口和信息状态。
 
 ### Neutral
 - **Canvas White** (`oklch(1 0 0)`): 画布和节点主表面。
-- **Panel Gray** (`oklch(0.975 0.004 80)`): 节点库、工具栏和配置面板。
-- **Ink Blue** (`oklch(0.235 0.025 255)`): 主文字，与白色表面对比度高于 7:1。
+- **Canvas Gray** (`oklch(0.9846 0.0017 247.84)` / `#F9FAFB`): 画布和工作区冷白底。
+- **Panel Gray** (`oklch(0.9846 0.0017 247.84)`): 节点库、工具栏和配置面板，不再向黄色偏移。
+- **Ink Blue** (`oklch(0.2101 0.0318 264.66)` / `#111827`): 主文字，与白色表面对比度高于 7:1。
 
-**The Rare Accent Rule.** 蜂蜜金不用于大面积背景或装饰；它的罕见性本身就是层级。
+**The Rare Accent Rule.** 晴蓝不用于大面积背景或装饰；它的罕见性本身就是层级。
 
 ## Typography
 
@@ -100,7 +103,7 @@ components:
 
 ### Buttons
 - **Shape:** 10px 圆角，高度 36px。
-- **Primary:** 蜂蜜金填充和白色文字，仅用于生成工作流。
+- **Primary:** 晴蓝填充和白色文字，仅用于生成工作流。
 - **Hover / Focus:** 150–200ms 状态过渡；2px 可见焦点环。
 
 ### Chips
