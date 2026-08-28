@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { AlertCircle, ArrowRight, CheckCircle2, Clock3, GitBranch, ListFilter, LoaderCircle, Plus, Split } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, GitBranch, ListFilter, LoaderCircle, Plus, Split } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/app/lib/utils";
 import { getOperator, getOperatorCategory, getOperatorRoutes, type BuilderNode } from "@/app/lib/workflow";
@@ -59,10 +59,11 @@ export function WorkflowNode({ id, data, selected }: NodeProps<BuilderNode>) {
         </div>
       </div>
       <p className="line-clamp-2 min-h-8 px-3 text-[10px] leading-4 text-[var(--muted-foreground)]">{operator?.description}</p>
-      <div className="mt-2 flex items-center justify-between border-t border-black/[0.06] px-3 py-2 text-[10px] text-[var(--muted-foreground)]">
-        <span className="inline-flex items-center gap-1"><ArrowRight className="h-3 w-3" />{data.operatorId === "control.start" ? "流程入口" : data.kind === "result" ? `${data.incomingCount || 0} 路结束` : `${operator?.inputs.length || 0} 入 / ${routes.length || operator?.outputs.length || 0} 出`}</span>
-        {runState === "idle" ? <span>{operator?.publishedVersion || operator?.cardinality || "1:1"}</span> : <span className={cn("inline-flex max-w-[120px] items-center gap-1 font-medium", runTone)}>{runState === "running" ? <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" /> : runState === "pending" ? <Clock3 className="h-3 w-3" /> : runState === "succeeded" ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}<span className="truncate">{data.runDetail || (runState === "running" ? "处理中" : runState === "pending" ? "等待回传" : runState === "succeeded" ? "已完成" : "失败")}</span></span>}
-      </div>
+      {runState !== "idle" && (
+        <div className={cn("mt-2 flex items-center justify-end border-t border-black/[0.06] px-3 py-2 text-[10px]", runTone)}>
+          <span className="inline-flex max-w-[120px] items-center gap-1 font-medium">{runState === "running" ? <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" /> : runState === "pending" ? <Clock3 className="h-3 w-3" /> : runState === "succeeded" ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}<span className="truncate">{data.runDetail || (runState === "running" ? "处理中" : runState === "pending" ? "等待回传" : runState === "succeeded" ? "已完成" : "失败")}</span></span>
+        </div>
+      )}
       {routes.length > 0 ? (
         <div className="border-t border-black/[0.06] bg-white/55 py-1">
           {routes.map((route) => {
