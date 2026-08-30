@@ -1,11 +1,11 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-25T00:00:00+08:00",
+  "generatedAt": "2026-08-31T00:00:00+08:00",
   "title": "Design System: Agent Workflow Builder",
   "extensions": {
     "colorMeta": {
-      "honey-action": { "role": "primary", "displayName": "Honey Action", "canonical": "oklch(0.62 0.15 80)", "tonalRamp": ["oklch(0.95 0.035 80)", "oklch(0.78 0.12 80)", "oklch(0.62 0.15 80)", "oklch(0.44 0.11 80)"] },
-      "ink-blue": { "role": "neutral", "displayName": "Ink Blue", "canonical": "oklch(0.235 0.025 255)", "tonalRamp": ["oklch(0.95 0.006 255)", "oklch(0.70 0.018 255)", "oklch(0.50 0.018 255)", "oklch(0.235 0.025 255)"] }
+      "action-blue": { "role": "primary", "displayName": "Action Blue", "canonical": "oklch(0.5987 0.2194 259.04)", "tonalRamp": ["oklch(0.967 0.0159 253.90)", "oklch(0.75 0.12 258)", "oklch(0.5987 0.2194 259.04)", "oklch(0.418 0.1933 262)"] },
+      "ink-blue": { "role": "neutral", "displayName": "Ink Blue", "canonical": "oklch(0.2101 0.0318 264.66)", "tonalRamp": ["oklch(0.955 0.008 260)", "oklch(0.70 0.018 264)", "oklch(0.4918 0.0171 264.41)", "oklch(0.2101 0.0318 264.66)"] }
     },
     "typographyMeta": {
       "body": { "displayName": "Interface Body", "purpose": "所有主要产品界面和配置内容。" },
