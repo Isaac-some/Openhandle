@@ -58,9 +58,9 @@ export function WorkflowNode({ id, data, selected }: NodeProps<BuilderNode>) {
           <p className="mt-0.5 truncate font-mono text-[10px] text-[var(--muted-foreground)]" title={data.operatorId}>{data.operatorId}</p>
         </div>
       </div>
-      <p className="line-clamp-2 min-h-8 px-3 text-[10px] leading-4 text-[var(--muted-foreground)]">{operator?.description}</p>
+      <p className="line-clamp-2 min-h-8 px-3 pb-3 text-[10px] leading-4 text-[var(--muted-foreground)]">{operator?.description}</p>
       {runState !== "idle" && (
-        <div className={cn("mt-2 flex items-center justify-end border-t border-black/[0.06] px-3 py-2 text-[10px]", runTone)}>
+        <div className={cn("flex items-center justify-end border-t border-black/[0.06] px-3 pb-3 pt-2 text-[10px]", runTone)}>
           <span className="inline-flex max-w-[120px] items-center gap-1 font-medium">{runState === "running" ? <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" /> : runState === "pending" ? <Clock3 className="h-3 w-3" /> : runState === "succeeded" ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}<span className="truncate">{data.runDetail || (runState === "running" ? "处理中" : runState === "pending" ? "等待回传" : runState === "succeeded" ? "已完成" : "失败")}</span></span>
         </div>
       )}
