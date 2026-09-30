@@ -27,7 +27,7 @@ export interface ConditionRule {
   expression: string;
 }
 
-export type WorkflowConfigValue = string | number | boolean | ConditionRule[];
+export type WorkflowConfigValue = string | number | boolean | ConditionRule[] | string[];
 
 export interface OperatorDefinition {
   id: string;
@@ -330,7 +330,7 @@ const defaultConditionRules: ConditionRule[] = [
 export function getConditionRules(config: Record<string, WorkflowConfigValue>): ConditionRule[] {
   const configured = config["分流规则"];
   if (Array.isArray(configured)) {
-    const rules = configured.filter((rule): rule is ConditionRule => Boolean(rule && typeof rule.id === "string" && typeof rule.label === "string" && typeof rule.expression === "string"));
+    const rules = configured.filter((rule): rule is ConditionRule => Boolean(rule && typeof rule === "object" && "id" in rule && "label" in rule && "expression" in rule));
     return rules;
   }
   const legacyIf = typeof config["If 条件"] === "string" ? String(config["If 条件"]) : defaultConditionRules[0].expression;

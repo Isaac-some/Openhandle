@@ -5,9 +5,10 @@ import tailwindcss from "@tailwindcss/postcss";
 import { defineConfig } from "vite";
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+const repositoryName = process.env.GITHUB_REPOSITORY?.split("/").at(-1);
 
 export default defineConfig({
-  base: "/Openhandle/",
+  base: repositoryName ? `/${repositoryName}/` : "/Openhandle/",
   root: path.join(projectRoot, "pages"),
   publicDir: path.join(projectRoot, "public"),
   css: { postcss: { plugins: [tailwindcss()] } },

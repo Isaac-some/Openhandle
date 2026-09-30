@@ -74,6 +74,7 @@ import {
   type FlowDefinition,
   type OperatorDefinition,
   type OperatorField,
+  type WorkflowConfigValue,
   type ValidationIssue,
   validateWorkflow,
   wouldCreateCycle,
@@ -98,7 +99,7 @@ function migrateSnapshot(snapshot: Snapshot): Snapshot {
     }
     if (node.data.operatorId === "control.result") {
       const previousName = typeof node.data.config["结果名称"] === "string" ? node.data.config["结果名称"] : undefined;
-      const config = { ...node.data.config, "结局类型": node.data.config["结局类型"] || "输出结果", "结局名称": node.data.config["结局名称"] || previousName || "pipeline_result" };
+      const config: Record<string, WorkflowConfigValue> = { ...node.data.config, "结局类型": node.data.config["结局类型"] || "输出结果", "结局名称": node.data.config["结局名称"] || previousName || "pipeline_result" };
       delete config["结果名称"];
       return { ...node, data: { ...node.data, label: "结束", config, mappings: {} } };
     }
