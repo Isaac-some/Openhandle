@@ -808,6 +808,14 @@ export function fieldsCompatible(source: OperatorField, target: OperatorField) {
   return source.semanticType === "field.generic" || target.semanticType === "field.generic";
 }
 
+export function fieldsExactlyMatch(source: OperatorField, target: OperatorField) {
+  return source.key === target.key
+    && source.type === target.type
+    && source.semanticType === target.semanticType
+    && source.cardinality === target.cardinality
+    && Boolean(source.system) === Boolean(target.system);
+}
+
 export function getEdgeFieldPair(edge: BuilderEdge) {
   if (edge.data?.sourceField && edge.data?.targetField) {
     return { sourceField: edge.data.sourceField, targetField: edge.data.targetField };

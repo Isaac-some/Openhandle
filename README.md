@@ -2,9 +2,10 @@
 
 Agent 工作流编排交互原型，用真实算子数据验证节点连接、字段映射、条件分流、表达式筛选、二路聚合、运行前校验和数据守恒。
 
-- 代码仓库：[Isaac-some/Openhandle2](https://github.com/Isaac-some/Openhandle2)
-- 二期原型预览：[GitHub Pages](https://isaac-some.github.io/Openhandle2/?prototype=phase2)
-- 部署记录：[GitHub Actions](https://github.com/Isaac-some/Openhandle2/actions/workflows/deploy-pages.yml)
+- 代码仓库：[Isaac-some/Openhandle](https://github.com/Isaac-some/Openhandle)
+- 原版界面：[GitHub Pages](https://isaac-some.github.io/Openhandle/)
+- 二期原型预览：[GitHub Pages](https://isaac-some.github.io/Openhandle/?prototype=phase2)
+- 部署记录：[GitHub Actions](https://github.com/Isaac-some/Openhandle/actions/workflows/deploy-pages.yml)
 - 完整交接：[HANDOFF.md](./HANDOFF.md)
 - 产品决策：[PRODUCT.md](./PRODUCT.md)
 - 视觉规范：[DESIGN.md](./DESIGN.md)
@@ -43,7 +44,7 @@ npm run dev:pages
 | `npm run dev:pages` | 启动与 GitHub Pages 同入口的本地开发服务 | 推荐 |
 | `npm run build:pages` | 构建 `pages-dist/` 静态站点 | 正式发布路径 |
 | `npm run preview:pages` | 预览已生成的 Pages 构建 | 需先运行 `build:pages` |
-| `npm test` | 运行 Vitest 工作流规则测试 | 26 个测试 |
+| `npm test` | 运行 Vitest 工作流规则测试 | 当前测试集 |
 | `npm run lint` | 运行 ESLint | 发布必须通过 |
 | `npm run build` | 构建 Vinext/Sites 路径 | 非正式发布路径 |
 | `npm run dev` | 启动 Vinext/Sites 本地路径 | 已知首页 500，不要用于日常开发 |

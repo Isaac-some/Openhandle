@@ -11,6 +11,7 @@ import {
   getOperatorCategory,
   getOperatorRoutes,
   getRecommendedOperatorIds,
+  fieldsExactlyMatch,
   instantiateFlow,
   operators,
   publishedFlows,
@@ -20,6 +21,13 @@ import {
 } from "./workflow";
 
 describe("workflow validation", () => {
+  it("only treats identical field contracts as an automatic match", () => {
+    const source = { key: "tos_path", type: "String", semanticType: "media_locator.tos", cardinality: "one" };
+    expect(fieldsExactlyMatch(source, { ...source })).toBe(true);
+    expect(fieldsExactlyMatch(source, { ...source, semanticType: "field.generic" })).toBe(false);
+    expect(fieldsExactlyMatch(source, { ...source, key: "other_path" })).toBe(false);
+  });
+
   it("accepts the seeded media validation workflow", () => {
     const workflow = createInitialWorkflow();
     expect(validateWorkflow(workflow.nodes, workflow.edges).filter((issue) => issue.level === "error")).toEqual([]);

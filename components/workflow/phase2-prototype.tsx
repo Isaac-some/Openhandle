@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  createNode, domainLabels, fieldsCompatible, getOperator, getOperatorRoutes, getConditionRules, operators, publishedFlows,
+  createNode, domainLabels, fieldsCompatible, fieldsExactlyMatch, getOperator, getOperatorRoutes, getConditionRules, operators, publishedFlows,
   type FieldMapping, type FlowDefinition, type OperatorField,
   type WorkflowNodeData, type WorkflowConfigValue,
 } from "@/app/lib/workflow";
@@ -133,6 +133,18 @@ function outputFields(data: PhaseData): OperatorField[] {
   if (!base) return declared;
   return [...declared, ...outputShape(data).filter((field) => field.key.trim()).map((field) => ({ key: `${base.key}.${field.key}`, type: field.type, semanticType: `field.json.${field.key}`, cardinality: field.type === "List" ? "many" : "one" }))];
 }
+function availableOutputFields(id: string, nodes: PhaseNode[], edges: PhaseEdge[], seen = new Set<string>()): OperatorField[] {
+  if (seen.has(id)) return [];
+  const node = nodes.find((item) => item.id === id);
+  if (!node) return [];
+  const nextSeen = new Set(seen).add(id);
+  if (node.data.operatorId !== "phase2.merge") return outputFields(node.data);
+  const incoming = edges.find((edge) => edge.target === id);
+  return incoming ? availableOutputFields(incoming.source, nodes, edges, nextSeen) : [];
+}
+function findExactUpstreamField(input: OperatorField, upstream: PhaseNode[], nodes: PhaseNode[], edges: PhaseEdge[]) {
+  return upstream.flatMap((source) => availableOutputFields(source.id, nodes, edges).map((field) => ({ source, field }))).find(({ field }) => fieldsExactlyMatch(field, input));
+}
 function upstreamOf(id: string, nodes: PhaseNode[], edges: PhaseEdge[]) {
   const seen = new Set<string>();
   const walk = (target: string) => edges.filter((e) => e.target === target).forEach((e) => { if (!seen.has(e.source)) { seen.add(e.source); walk(e.source); } });
@@ -156,21 +168,29 @@ function getIssues(nodes: PhaseNode[], edges: PhaseEdge[]): Issue[] {
     const upstream = upstreamOf(n.id, nodes, edges);
     inputFields(n.data).filter((f) => f.required && !f.system).forEach((f) => {
       const m = n.data.mappings[f.key];
-      if (!m || ((m.sourceType === "fixed" || m.sourceType === "parameter") && !m.value)) { issues.push({ nodeId: n.id, field: f.key, message: `请选择 ${f.key} 的输入来源` }); return; }
+      if (!m) {
+        if (!findExactUpstreamField(f, upstream, nodes, edges)) issues.push({ nodeId: n.id, field: f.key, message: `请选择 ${f.key} 的输入来源` });
+        return;
+      }
+      if ((m.sourceType === "fixed" || m.sourceType === "parameter") && !m.value) { issues.push({ nodeId: n.id, field: f.key, message: `请选择 ${f.key} 的输入来源` }); return; }
       if (m.sourceType === "upstream") {
         const source = upstream.find((s) => s.id === m.sourceNodeId);
-        const field = source && outputFields(source.data).find((x) => x.key === m.sourceField);
-        if (!field) issues.push({ nodeId: n.id, field: f.key, message: `${f.key} 的来源已失效，请重新绑定` });
-        else if (!fieldsCompatible(field, f)) issues.push({ nodeId: n.id, field: f.key, message: `${f.key} 与来源的类型或结构不匹配，请显式转换` });
+        const field = source && availableOutputFields(source.id, nodes, edges).find((x) => x.key === m.sourceField);
+        const fallback = !field ? findExactUpstreamField(f, upstream, nodes, edges) : undefined;
+        const resolvedField = field ?? fallback?.field;
+        if (!resolvedField) issues.push({ nodeId: n.id, field: f.key, message: `${f.key} 的来源已失效，请重新绑定` });
+        else if (!fieldsCompatible(resolvedField, f)) issues.push({ nodeId: n.id, field: f.key, message: `${f.key} 与来源的类型或结构不匹配，请显式转换` });
       }
     });
     const requiredKeys = new Set(inputFields(n.data).filter((field) => field.required && !field.system).map((field) => field.key));
     Object.entries(n.data.mappings).filter(([key, binding]) => !requiredKeys.has(key) && binding.sourceType === "upstream").forEach(([key, binding]) => {
       const source = upstream.find((item) => item.id === binding.sourceNodeId);
-      const field = source && outputFields(source.data).find((item) => item.key === binding.sourceField);
       const target = inputFields(n.data).find((item) => item.key === key);
-      if (!field) issues.push({ nodeId: n.id, field: key, message: `${key} 的来源已失效，请重新绑定` });
-      else if (target && !fieldsCompatible(field, target)) issues.push({ nodeId: n.id, field: key, message: `${key} 与来源的类型或结构不匹配，请显式转换` });
+      const field = source && availableOutputFields(source.id, nodes, edges).find((item) => item.key === binding.sourceField);
+      const fallback = !field && target ? findExactUpstreamField(target, upstream, nodes, edges) : undefined;
+      const resolvedField = field ?? fallback?.field;
+      if (!resolvedField) issues.push({ nodeId: n.id, field: key, message: `${key} 的来源已失效，请重新绑定` });
+      else if (target && !fieldsCompatible(resolvedField, target)) issues.push({ nodeId: n.id, field: key, message: `${key} 与来源的类型或结构不匹配，请显式转换` });
     });
     getOperator(n.data.operatorId)?.config.filter((f) => f.required).forEach((f) => {
       if (n.data.config[f.key] === "" || n.data.config[f.key] === undefined) issues.push({ nodeId: n.id, field: f.key, message: `请填写 ${f.key}` });
@@ -185,7 +205,7 @@ function getIssues(nodes: PhaseNode[], edges: PhaseEdge[]): Issue[] {
       if (Array.isArray(selectedOutputs)) selectedOutputs.forEach((entry) => {
         const [sourceId, ...fieldParts] = String(entry).split("|");
         const source = upstream.find((item) => item.id === sourceId);
-        if (!source || !outputFields(source.data).some((field) => field.key === fieldParts.join("|"))) issues.push({ nodeId: n.id, field: "交付字段", message: `交付字段来源已失效：${fieldParts.join("|")}` });
+        if (!source || !availableOutputFields(source.id, nodes, edges).some((field) => field.key === fieldParts.join("|"))) issues.push({ nodeId: n.id, field: "交付字段", message: `交付字段来源已失效：${fieldParts.join("|")}` });
       });
     }
     if (n.data.operatorId === "phase2.ratio") {
@@ -196,7 +216,14 @@ function getIssues(nodes: PhaseNode[], edges: PhaseEdge[]): Issue[] {
     if (["control.condition", "control.filter"].includes(n.data.operatorId)) {
       getOperatorRoutes(n.data.operatorId, n.data.config).forEach((r) => { if (!edges.some((e) => e.source === n.id && e.sourceHandle === r.id)) issues.push({ nodeId: n.id, message: `${r.label} 出口尚未连接` }); });
     }
-    if (n.data.operatorId === "phase2.merge") issues.push({ nodeId: n.id, message: "合流字段契约需正式执行器校验；此原型仅展示配置入口" });
+    if (n.data.operatorId === "phase2.merge") {
+      const incoming = edges.filter((edge) => edge.target === n.id);
+      const left = incoming[0] ? availableOutputFields(incoming[0].source, nodes, edges) : [];
+      const right = incoming[1] ? availableOutputFields(incoming[1].source, nodes, edges) : [];
+      const sameSchema = left.length === right.length && left.every((field) => right.some((candidate) => fieldsExactlyMatch(field, candidate)));
+      if (incoming.length !== 2) issues.push({ nodeId: n.id, message: "合流需要连接两条支线" });
+      else if (!sameSchema) issues.push({ nodeId: n.id, message: "两条支线的输入字段不完全一致，请先统一字段结构" });
+    }
     if (n.data.flowId) issues.push({ nodeId: n.id, message: "整组已添加；内部完整配置与运行校验需正式执行器确认" });
   });
   return issues;
@@ -423,7 +450,28 @@ function PrototypeInner() {
     if (nodes.find((n) => n.id === connection.target)?.data.operatorId === "control.start" || nodes.find((n) => n.id === connection.source)?.data.kind === "result") return;
     if (upstreamOf(connection.source, nodes, edges).some((n) => n.id === connection.target)) { setNotice("不能连接成循环"); return; }
     if (edges.some((e) => e.source === connection.source && e.target === connection.target && e.sourceHandle === connection.sourceHandle)) return;
-    capture(); setEdges((es) => [...es, makeEdge(connection.source!, connection.target!, { sourceHandle: connection.sourceHandle, targetHandle: connection.targetHandle })]); changed(); setNotice("连线已建立，请核对字段来源");
+    const sourceNode = nodes.find((node) => node.id === connection.source);
+    const targetNode = nodes.find((node) => node.id === connection.target);
+    const exactFields = sourceNode && targetNode ? availableOutputFields(sourceNode.id, nodes, edges) : [];
+    let autoMapped = false;
+    const nextNodes = sourceNode && targetNode ? nodes.map((node) => {
+      if (node.id !== targetNode.id) return node;
+      const mappings = { ...node.data.mappings };
+      inputFields(node.data).forEach((input) => {
+        if (mappings[input.key]) return;
+        const output = exactFields.find((field) => fieldsExactlyMatch(field, input));
+        if (output) {
+          mappings[input.key] = { sourceType: "upstream", sourceNodeId: sourceNode.id, sourceField: output.key };
+          autoMapped = true;
+        }
+      });
+      return autoMapped ? { ...node, data: { ...node.data, mappings } } : node;
+    }) : nodes;
+    capture();
+    if (autoMapped) setNodes(nextNodes);
+    setEdges((es) => [...es, makeEdge(connection.source!, connection.target!, { sourceHandle: connection.sourceHandle, targetHandle: connection.targetHandle })]);
+    changed();
+    setNotice(autoMapped ? "连线已建立，完全一致的字段已自动绑定" : "连线已建立");
   };
   const undo = () => { const s = history.current.pop(); if (!s) return; future.current.push(clone({ nodes, edges })); setNodes(s.nodes); setEdges(s.edges); choose(null); changed(); setHistoryTick((v) => v + 1); setHistoryCounts({ undo: history.current.length, redo: future.current.length }); };
   const redo = () => { const s = future.current.pop(); if (!s) return; history.current.push(clone({ nodes, edges })); setNodes(s.nodes); setEdges(s.edges); choose(null); changed(); setHistoryTick((v) => v + 1); setHistoryCounts({ undo: history.current.length, redo: future.current.length }); };
@@ -495,10 +543,10 @@ function PrototypeInner() {
     if (!draft || !selectedId) return null;
     const displayNodes = nodes.map((node) => node.id === selectedId ? { ...node, data: draft } : node);
     const sourceNodes = upstreamOf(selectedId, displayNodes, edges);
-    const deliveryFields = sourceNodes.flatMap((node) => outputFields(node.data).filter((field) => node.data.purpose !== "understanding" || field.key.includes(".")).map((field) => ({ node, field, value: `${node.id}|${field.key}` })));
+    const deliveryFields = sourceNodes.flatMap((node) => availableOutputFields(node.id, displayNodes, edges).filter((field) => node.data.purpose !== "understanding" || field.key.includes(".")).map((field) => ({ node, field, value: `${node.id}|${field.key}` })));
     const endInputs = edges.filter((edge) => edge.target === selectedId).flatMap((edge) => {
       const sourceNode = displayNodes.find((node) => node.id === edge.source);
-      return sourceNode ? outputFields(sourceNode.data).filter((field) => sourceNode.data.purpose !== "understanding" || field.key.includes(".")).map((field) => `${sourceNode.id}|${field.key}`) : [];
+      return sourceNode ? availableOutputFields(sourceNode.id, displayNodes, edges).filter((field) => sourceNode.data.purpose !== "understanding" || field.key.includes(".")).map((field) => `${sourceNode.id}|${field.key}`) : [];
     });
     const configuredDelivery = Array.isArray(draft.config["交付字段"]) ? draft.config["交付字段"].map(String) : endInputs;
     const setDelivery = (value: string, checked: boolean) => {
@@ -528,7 +576,7 @@ function PrototypeInner() {
           {inputFields(draft!).length > 0 && <><div className="p2-section-label">输入来源 <small>可搜索全部可达上游</small></div>{inputFields(draft!).map((f) => {
             const m = draft?.mappings[f.key];
             const value = m?.sourceType === "upstream" ? `${m.sourceNodeId}|${m.sourceField}` : m?.sourceType === "fixed" ? "fixed" : "";
-            const available = sourceNodes.flatMap((n) => outputFields(n.data).map((o) => ({ node: n, field: o, value: `${n.id}|${o.key}` })));
+            const available = sourceNodes.flatMap((n) => availableOutputFields(n.id, displayNodes, edges).map((o) => ({ node: n, field: o, value: `${n.id}|${o.key}` })));
             const valid = available.some((a) => a.value === value);
             const sourceName = sourceNodes.find((node) => node.id === m?.sourceNodeId)?.data.label;
             return <div className="p2-binding" key={f.key}><label htmlFor={`p2-field-${f.key}`}>{f.key}{f.required && <em>*</em>}<small>{f.type}{f.cardinality === "many" ? "[]" : ""}</small></label>{m?.sourceType === "upstream" && <div className={`p2-binding-current ${valid ? "" : "invalid"}`}><strong>{sourceName ?? "来源已失效"}</strong><span>输出 <code>{m.sourceField}</code></span><ChevronRight size={14} /><span>输入 <code>{f.key}</code></span></div>}<SourcePicker id={`p2-field-${f.key}`} value={value} disabled={draft.readOnly} options={available.map((a) => ({ value: a.value, nodeId: a.node.id, nodeLabel: a.node.data.label, field: a.field.key, type: a.field.type, compatible: fieldsCompatible(a.field, f) }))} onChange={(value) => map(f.key, value)} onPreview={setPreviewSource} />{m?.sourceType === "fixed" && <Input aria-label={`${f.key} 固定值`} placeholder="请输入固定值" value={m.value ?? ""} onChange={(e) => updateDraft((d) => ({ ...d, mappings: { ...d.mappings, [f.key]: { sourceType: "fixed", value: e.target.value } } }))} />}{missing.find((i) => i.field === f.key) && <small className="p2-error">{missing.find((i) => i.field === f.key)?.message}</small>}</div>;
@@ -560,8 +608,8 @@ function PrototypeInner() {
 
   return <div className="p2-app" data-history-tick={historyTick}>
     <header className="p2-platform-header"><strong>AI 数据服务平台</strong><span className="p2-prototype-tag">二期交互原型 · 演示数据</span><div><span>当前项目</span><User size={17} /><span>admin</span></div></header>
-    <nav className="p2-platform-rail" aria-label="平台导航"><User size={19} /><span className="active"><Workflow size={19} /></span><Database size={19} /><Settings2 size={19} /><a href="?" title="返回原有原型"><ArrowLeft size={18} /></a></nav>
-    <header className="p2-workflow-header"><div><Button variant="outline" onClick={() => { if (draftChanged) { setNotice("请先保存当前节点配置"); return; } window.location.search = ""; }}><ArrowLeft size={17} />返回</Button><div><h1>Pipeline 编排 <span>视频内容标注</span></h1><p>草稿 · {saved ? "已保存" : "未保存"} <span>当前内容版本 {revision}</span></p></div></div><div className="p2-header-actions"><Button variant="outline" onClick={() => setNotice("版本管理入口已预留，内容由一期版本管理功能接入")}><History size={16} />版本管理</Button><Button variant="outline" onClick={() => { if (draftChanged) { setNotice("请先保存当前配置再校验"); return; } setDock("validation"); setLibrary(false); setExpandedDock(true); setThreeColumns(false); }}><FileCheck2 size={16} />校验{issues.length > 0 && <span className="p2-count">{issues.length}</span>}</Button><Button variant="outline" onClick={launchSetup}><Play size={16} />试跑</Button><Button variant="outline" onClick={() => { if (draftChanged) { setNotice("请先保存节点配置，再保存草稿"); return; } setSaved(true); setNotice("演示草稿已保存，仅保留于当前页面"); }}><Save size={16} />保存</Button><Button onClick={() => { if (draftChanged || issues.length) { setNotice("请先保存配置并处理校验提示"); setDock("validation"); setLibrary(false); setExpandedDock(true); return; } setPublishOpen(true); }}><CheckCircle2 size={16} />上线</Button></div></header>
+    <nav className="p2-platform-rail" aria-label="平台导航"><User size={19} /><span className="active"><Workflow size={19} /></span><Database size={19} /><Settings2 size={19} /></nav>
+    <header className="p2-workflow-header"><div><div><h1>Pipeline 编排 <span>视频内容标注</span></h1><p>草稿 · {saved ? "已保存" : "未保存"} <span>当前内容版本 {revision}</span></p></div></div><div className="p2-header-actions"><Button variant="outline" onClick={() => setNotice("版本管理入口已预留，内容由一期版本管理功能接入")}><History size={16} />版本管理</Button><Button variant="outline" onClick={() => { if (draftChanged) { setNotice("请先保存当前配置再校验"); return; } setDock("validation"); setLibrary(false); setExpandedDock(true); setThreeColumns(false); }}><FileCheck2 size={16} />校验{issues.length > 0 && <span className="p2-count">{issues.length}</span>}</Button><Button variant="outline" onClick={launchSetup}><Play size={16} />试跑</Button><Button variant="outline" onClick={() => { if (draftChanged) { setNotice("请先保存节点配置，再保存草稿"); return; } setSaved(true); setNotice("演示草稿已保存，仅保留于当前页面"); }}><Save size={16} />保存</Button><Button onClick={() => { if (draftChanged || issues.length) { setNotice("请先保存配置并处理校验提示"); setDock("validation"); setLibrary(false); setExpandedDock(true); return; } setPublishOpen(true); }}><CheckCircle2 size={16} />上线</Button></div></header>
     <main className={`p2-workspace ${selectedId && !threeColumns ? "has-inspector" : ""}`}>
       <div className="p2-central">
         <div className="p2-canvas" ref={stage}>
@@ -596,7 +644,7 @@ function PrototypeInner() {
       </div>
       {selectedId && draft && !threeColumns && renderInspector()}
     </main>
-    <footer className="p2-status-footer"><span>当前项目 · 用户工作流草稿</span><span>平移：拖动空白处　缩放：滚轮　连线：拖动连接口</span><a href="?">查看原有原型</a></footer>
+    <footer className="p2-status-footer"><span>当前项目 · 用户工作流草稿</span><span>平移：拖动空白处　缩放：滚轮　连线：拖动连接口</span></footer>
     {notice && <div className="p2-toast" role="status"><Info size={16} />{notice}</div>}
     {pendingSelection && <Modal title="当前节点配置尚未保存" onClose={() => setPendingSelection(null)}><p>切换节点前，保留或放弃本次修改。</p><footer><Button variant="outline" onClick={() => setPendingSelection(null)}>继续编辑</Button><Button variant="outline" onClick={() => { choose(pendingSelection.id); setPendingSelection(null); }}>放弃修改</Button><Button onClick={() => { const nextNodes = nodes.map((n) => n.id === selectedId && draft ? { ...n, data: clone(assembledDraft()!) } : n); capture(); setNodes(nextNodes); changed(); choose(pendingSelection.id, nextNodes); setPendingSelection(null); }}>保存并切换</Button></footer></Modal>}
     {mappingOpen && <Modal title="连线与字段来源" onClose={() => setMappingOpen(false)}><p>连线表达处理顺序。输入绑定在目标节点抽屉中配置，可搜索全部可达上游字段。</p><p>字段类型或结构不兼容时，需显式使用字段映射／转换；接线不会自动猜测对应关系。</p><footer><Button variant="outline" onClick={() => { const edge = edges.find((e) => e.id === inspectedEdge); if (edge && !nodes.find((n) => n.id === edge.target)?.data.readOnly) { setMappingOpen(false); focusNode(edge.target); } }}>配置目标节点</Button><Button variant="outline" disabled={Boolean(nodes.find((n) => n.id === edges.find((e) => e.id === inspectedEdge)?.target)?.data.readOnly)} onClick={() => { capture(); setEdges((es) => es.filter((e) => e.id !== inspectedEdge)); changed(); setMappingOpen(false); setNotice("连线已删除，可撤销；请检查输入绑定"); }}>删除连线</Button><Button onClick={() => setMappingOpen(false)}>返回画布</Button></footer></Modal>}
