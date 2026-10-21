@@ -6,6 +6,21 @@ Current answer for review (2026-09-29): keep the generated configuration form vo
 
 Route: /Openhandle/?prototype=phase2. In-memory only. Execution, diagnosis and publish are mock states. `control.transform` remains an edge relation and is excluded from add-node candidates.
 
+## 2026-10-21 算子用途检索与 Flow 复用
+
+- 统一“添加节点”入口，面板内“找算子／找 Flow”分别检索、保存查询状态；不增加顶部“复用 Flow”按钮。约 600 指基础算子，不能作为 Flow 数量；原型继续使用小规模本地样例。
+- 直接文字、别名及有限拼写匹配立即可用；用途补充约 1.35 秒，2 秒自动等待预算；深入核对由用户触发，约 6.2 秒，分阶段展示实际演示任务与耗时，可取消。
+- 结果按直接／用途／深入分区；稳定身份去重，已有候选仅补充分析引用。慢任务不得前插、重排、抢焦点或触发滚动。深入操作固定在面板底部，不被后到结果挤走。改词、换对象、过滤、关闭、重试和目录状态变化使旧任务失效。
+- 页面不保留原型状态、发布阶段、权限模拟、试跑失败或报错示例等演示控件。异常和撤权场景在自动化测试中验证；模拟边界只写在交付文档。
+- 算子结果可拖入落点；Flow 结果按所选版本拖入为节点组，保留当前画布。拖后检索面板保持打开，不自动移动视角或旧节点；空白画布拖放不沿用局部添加上下文改线。支持撤销重做。
+- Flow 可按整体目标与希望修改的内容找方案。版本集中选择，新建按所选版本复制实际节点、配置及显式连线，建立新身份并保留来源 Flow ID／版本；推荐改动不自动应用。
+- 原草稿、未保存节点配置、撤销栈、试跑及诊断上下文分别保留在页面内；修改版不继承旧运行记录，可往返编辑。详情保留按指定版本整组添加。
+- 血缘理由只来自样例有向连线与端口，展示来源 Flow／版本；无查询且有上游上下文才显示连接推荐，不把共现称为采用事实或运行成功。
+- 用途与深入阶段均为规则演示，无向量／模型／生产 API、持久化或真实效果测量。向量生产接入需在核验后的资料上做同查询对照，本次不采购或建立向量服务。
+- 补齐精确模型身份添加、Qwen 动态输出的真实列路径，避免生成 undefined 前缀；Diagnoser 浮钮避让配置抽屉底部，保证保存配置可点击。
+- 原样例 Flow 的字段契约仍须校验，复制不等于可直接运行。本地样例 `vod.transcoding.query.v2` 无声明输出，来源 Flow 的 `vid` 映射会如实提示失效，不静默改成同名来源。
+- 本次仅本地审核；未经用户审核通过，不 commit、不 push、不发布 GitHub Pages。
+
 Accepted user decisions and design proposals are separated in ../../../二期交互决策记录-20260928.md and ../../../二期编排界面变更方案与UI交付-20260928.md (workspace parent documents).
 
 After UI/product approval, absorb the accepted interaction rules into the production specification and remove this throwaway route. It is not a replacement for company source or translation protocol implementation.

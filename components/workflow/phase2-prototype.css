@@ -209,6 +209,8 @@
 .p2-reference-selected{white-space:nowrap}
 .p2-inspector>footer:has(.p2-reference-selected){height:auto;min-height:58px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .p2-inspector>footer:has(.p2-reference-selected)>button:last-child{grid-column:2;justify-self:end}
+.p2-workspace.has-inspector ~ .p2-diagnosis-launcher{right:412px}
+@media(max-width:1200px){.p2-workspace.has-inspector ~ .p2-diagnosis-launcher{right:372px}}
 
 /* Plain references ship with field mapping; rich AI links are a later phase. */
 .p2-release-stage{margin-left:18px;border:1px solid #d5dce4;border-radius:6px;background:white;padding:5px 8px;font-size:12px;color:#43536a}

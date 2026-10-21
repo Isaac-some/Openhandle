@@ -17,6 +17,6 @@ function DockButton({ item, mouseX }: { item: DockItem; mouseX: MotionValue<numb
   const magnification = useTransform(distance, [-90, 0, 90], [1, 1.28, 1]);
   const scale = useSpring(magnification, { mass: 0.1, stiffness: 180, damping: 18 });
   return <>{item.separator && <i aria-hidden="true" />}<div ref={ref} className="p2-dock-item"><motion.button type="button" aria-label={item.title} aria-pressed={item.active === undefined ? undefined : item.active} disabled={item.disabled} onClick={item.onClick} style={{ scale: reduced || item.disabled ? 1 : scale }} className={`${item.className ?? ""} ${item.active ? "active" : ""}`}>
-    {item.icon}{item.className === "p2-toolbar-add" && <span>添加节点</span>}
+    {item.icon}{item.className === "p2-toolbar-add" && <span>{item.title}</span>}
   </motion.button><span className="p2-tool-tooltip" role="tooltip">{item.title}</span></div></>;
 }

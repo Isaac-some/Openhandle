@@ -1,3 +1,4 @@
+import { outputColumnPath } from "./output-schema";
 import { describe, expect, it } from "vitest";
 import { buildOutputSchema, importOutputSchema, outputShapeErrors } from "./output-schema";
 
@@ -33,4 +34,9 @@ describe("flat AI output schema", () => {
     ])).toHaveLength(2);
     expect(outputShapeErrors([{ key: "video.title", type: "String", required: true, description: "" }])).toContain("列名使用英文字母、数字和下划线，不能嵌套或含空格");
   });
+});
+
+ it("uses actual wrapper roots and keeps dynamic model outputs flat", () => {
+  expect(outputColumnPath("title", "gemini_output")).toBe("gemini_output.title");
+  expect(outputColumnPath("title")).toBe("title");
 });

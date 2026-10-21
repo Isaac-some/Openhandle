@@ -91,12 +91,11 @@ export function DiagnosisPanel({ context, records, visible, draftRevision, refer
     {records.length > 1 && <label>关联记录<select aria-label="诊断记录" value={context.id} onChange={(event) => onSelectRecord(event.target.value)}>{records.map((record) => <option key={record.id} value={record.id}>{sourceName(record)} · 版本 {record.revision} · {record.recordedAt}</option>)}</select></label>}
     <h4>报错信息</h4>{context.issues.length ? context.issues.map((issue, index) => <p key={index}><strong>{context.nodes.find((node) => node.id === issue.nodeId)?.label}{issue.field ? ` · ${issue.field}` : ""}</strong><br />{issue.message}</p>) : <p>当前记录没有报错信息。</p>}
     <button className="p2-evidence-link" onClick={onViewErrors}>打开对应{context.source === "trial" ? "试跑结果" : "配置检查"}<ChevronRight size={14} /></button>
-    <h4>读取的日志</h4><p>当前原型未接入真实执行日志。</p>
-    <h4>算子代码</h4><p>当前原型未读取算子源码，不据此确认源码问题。</p>
+    <h4>读取的日志</h4><p>当前记录暂无可用的执行日志。</p>
+    <h4>算子代码</h4><p>当前记录未提供算子源码，需结合配置与执行证据核实。</p>
     <h4>本次配置</h4>{context.nodes.map((node) => <details key={node.id}><summary>{node.label}</summary><pre>{JSON.stringify({ nodeId: node.id, operatorId: node.operatorId, config: node.config, mappings: node.mappings }, null, 2)}</pre></details>)}
     <details><summary>结构化记录</summary><pre>{diagnosisSummary(context, session.result)}</pre></details>
     <button className="p2-evidence-link" onClick={copy}><Copy size={14} />复制研发摘要</button>
-    <small>本地规则演示，未调用真实 AI。</small>
   </section>;
   return <section ref={panel} className="p2-diagnoser p2-diagnoser-floating" aria-label="Diagnoser 对话框" hidden={!visible} style={{ left: position.x, top: position.y }}>
     <AiAssistantCard feedRef={feed} empty={!session.messages.length && !evidenceOpen}

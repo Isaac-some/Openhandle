@@ -55,3 +55,7 @@ export function importOutputSchema(source: string): { fields: OutputShapeField[]
   if (errors.length) throw new Error(errors.join("；"));
   return { fields, changes };
 }
+// Some model operators declare a wrapper output; dynamic-output operators use the column itself.
+export function outputColumnPath(column: string, root?: string): string {
+  return root ? `${root}.${column}` : column;
+}

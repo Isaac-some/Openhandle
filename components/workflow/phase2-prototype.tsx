@@ -3,7 +3,7 @@
 // Throwaway interaction prototype. One focused direction follows the user's
 // minimal-change brief. ?prototype=phase2 keeps the existing prototype intact.
 // No company source, production API, persistence, or real execution is used.
-import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
 import {
   Background, BackgroundVariant, BaseEdge, Controls, EdgeLabelRenderer, Handle,
   MarkerType, MiniMap, Position, ReactFlow, ReactFlowProvider, getBezierPath,
@@ -13,21 +13,21 @@ import {
 import {
   AlertCircle, ArrowLeft, Bot, CheckCircle2, ChevronDown, ChevronRight,
   ChevronUp, Copy, Database, FileCheck2, Focus, GitBranch, Hand,
-  History, Info, Layers, LoaderCircle, Maximize2, MessageSquarePlus, MousePointer2, Play, Plus,
-  Redo2, Save, Search, Settings2, ShieldCheck, Trash2, Undo2, User,
+  History, Info, LoaderCircle, Maximize2, MessageSquarePlus, MousePointer2, Play, Plus,
+  Redo2, Save, Settings2, ShieldCheck, Trash2, Undo2, User,
   Workflow, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  createNode, domainLabels, fieldsCompatible, fieldsExactlyMatch, getOperator, getOperatorRoutes, getConditionRules, operators, publishedFlows,
-  type FieldMapping, type FlowDefinition, type OperatorField,
+  createNode, fieldsCompatible, fieldsExactlyMatch, getOperator, getOperatorRoutes, getConditionRules,
+  type FieldMapping, type OperatorField,
   type WorkflowNodeData, type WorkflowConfigValue,
 } from "@/app/lib/workflow";
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { SourcePicker } from "./source-picker";
-import { buildOutputSchema, columnTypes, importOutputSchema, outputShapeErrors, type OutputShapeField } from "./output-schema";
+import { buildOutputSchema, columnTypes, importOutputSchema, outputShapeErrors, outputColumnPath, type OutputShapeField } from "./output-schema";
 import { DiagnosisPanel } from "./diagnosis-panel";
 import type { DiagnosisContext } from "./prototype-diagnosis";
 import { applyConfigurationPlan, reverseConfigurationPlan, type ConfigurationPlan, type DiagnosisNodeSnapshot, type RepairOutcome } from "./diagnosis-repair";
@@ -36,6 +36,11 @@ import { nextNodePosition } from "./node-placement";
 import { deriveWorkflowInputs, singleTrialInput } from "./workflow-inputs";
 import { ReferenceTextEditor } from "./reference-text-editor";
 import { NodeReferenceGlyph } from "./node-reference-icon";
+import { CapabilityDiscovery } from "./capability-discovery";
+import { candidates, flowSource, understandingIds } from "./capability-catalog";
+import { canUseCapability, selectCapabilityVersion, type Capability as Candidate, type SearchMode } from "./capability-search";
+import { buildFlowDraft, type DraftOrigin } from "./flow-draft";
+import { CAPABILITY_DRAG_MIME, resolveCapabilityDrop } from "./capability-drag";
 import "./phase2-prototype.css";
 
 type PhaseData = WorkflowNodeData & {
@@ -51,11 +56,6 @@ type PhaseData = WorkflowNodeData & {
 };
 type PhaseNode = Node<PhaseData, "phase2" | "phase2group">;
 type PhaseEdge = Edge<{ onInsert?: (id: string) => void; mappingFields?: { key: string; label: string }[]; onMap?: (field: string) => void }, "phase2">;
-type Candidate = {
-  id: string; name: string; description: string; domains: string[];
-  kind: "node" | "flow"; source: "engineering" | "custom";
-  operatorId?: string; purpose?: PhaseData["purpose"]; flow?: FlowDefinition;
-};
 type Issue = { nodeId: string; field?: string; message: string };
 type Run = {
   id: string; failures: Issue[];
@@ -68,8 +68,6 @@ type Snapshot = { nodes: PhaseNode[]; edges: PhaseEdge[] };
 let prototypeNodeSequence = 10;
 function allocateNodeId() { return `p2-${++prototypeNodeSequence}`; }
 
-const understandingIds = ["ai-platform.gemini", "ai-platform.deepseek", "ai-platform.qwen_tmp1"];
-const groupedIds = new Set([...understandingIds, "ai-platform.seedream.img2img", "control.transform"]);
 const modelNames: Record<string, string> = {
   "ai-platform.gemini": "Gemini", "ai-platform.deepseek": "DeepSeek",
   "ai-platform.qwen_tmp1": "Qwen", "ai-platform.seedream.img2img": "Seedream",
@@ -80,23 +78,6 @@ const defaultOutputShape: OutputShapeField[] = [
   { key: "keywords", type: "String", required: true, description: "内容关键词，多个关键词用逗号分隔" },
   { key: "summary", type: "String", required: true, description: "主要内容摘要" },
 ];
-const customFlow: FlowDefinition = {
-  ...publishedFlows.find((f) => f.id === "flow.video-preview")!,
-  id: "custom_video_preview_demo", name: "项目视频预览", version: "V2",
-  description: "演示用户工作流：基于生成视频预览方案，使用 480p 参数。",
-  nodes: publishedFlows.find((f) => f.id === "flow.video-preview")!.nodes.map((n) => ({ ...n, config: { ...n.config, ...(/transcoding.start|get/.test(n.operatorId) ? { "清晰度(选填240p/360p/480p/720p)": "480p" } : {}) } })),
-};
-const customFlowV1: FlowDefinition = { ...customFlow, version: "V1", description: "演示用户工作流 V1：沿用 720p 预览参数。", nodes: publishedFlows.find((f) => f.id === "flow.video-preview")!.nodes };
-const flowSource = [...publishedFlows, customFlow, customFlowV1];
-const candidates: Candidate[] = [
-  { id: "purpose.understanding", name: "AI 理解与标注", description: "在节点内选择模型，配置提示词和输入字段。", domains: ["ai-labeling", "video", "image"], kind: "node", source: "engineering", operatorId: "ai-platform.gemini", purpose: "understanding" },
-  { id: "purpose.generation", name: "AI 图片生成", description: "选择图片生成模型，配置输入图片与提示词。", domains: ["image", "ai-labeling"], kind: "node", source: "engineering", operatorId: "ai-platform.seedream.img2img", purpose: "generation" },
-  ...operators.filter((o) => !groupedIds.has(o.id) && !["control.wait", "control.start", "control.split", "control.aggregate"].includes(o.id)).map((o) => ({ id: o.id, name: o.name, description: o.description, domains: o.domains, kind: "node" as const, source: "engineering" as const, operatorId: o.id })),
-  { id: "phase2.ratio", name: "比例分流", description: "按配置比例分配到多条互斥分支。", domains: ["control"], kind: "node", source: "engineering" },
-  { id: "phase2.merge", name: "合流", description: "将字段结构一致的多路记录合并到下游。", domains: ["control"], kind: "node", source: "engineering" },
-  ...[...publishedFlows, customFlow].map((f) => ({ id: f.id, name: f.name, description: f.description, domains: f.domains, kind: "flow" as const, source: (f.id.startsWith("custom_") ? "custom" : "engineering") as Candidate["source"], flow: f })),
-];
-
 function clone<T>(v: T): T { return JSON.parse(JSON.stringify(v)) as T; }
 function makeNode(operatorId: string, id: string, x: number, y: number, extra: Partial<PhaseData> = {}): PhaseNode {
   const op = getOperator(operatorId);
@@ -139,8 +120,7 @@ function outputFields(data: PhaseData): OperatorField[] {
   const declared = getOperator(flow?.nodes.at(-1)?.operatorId ?? data.operatorId)?.outputs ?? [];
   if (data.purpose !== "understanding") return declared;
   const base = declared[0];
-  if (!base) return declared;
-  return [...declared, ...outputShape(data).filter((field) => field.key.trim()).map((field) => ({ key: `${base.key}.${field.key}`, type: field.type, semanticType: `field.json.${field.key}`, cardinality: field.type === "List" ? "many" : "one" }))];
+  return [...declared, ...outputShape(data).filter((field) => field.key.trim()).map((field) => ({ key: outputColumnPath(field.key, base?.key), type: field.type, semanticType: `field.json.${field.key}`, cardinality: field.type === "List" ? "many" : "one" }))];
 }
 function availableOutputFields(id: string, nodes: PhaseNode[], edges: PhaseEdge[], seen = new Set<string>()): OperatorField[] {
   if (seen.has(id)) return [];
@@ -334,9 +314,9 @@ function deliverable(node: PhaseNode) { return outputFields(node.data).filter((f
 function deliverySelection(end: PhaseNode, nodes: PhaseNode[], edges: PhaseEdge[]) {
   return Array.isArray(end.data.config["交付字段"]) ? end.data.config["交付字段"].map(String) : edges.filter((edge) => edge.target === end.id).flatMap((edge) => { const node = nodes.find((item) => item.id === edge.source); return node ? deliverable(node).map((field) => `${node.id}|${field.key}`) : []; });
 }
-function ValidationReview({ nodes, edges, issues, onFocus, onRun, onAnalyze, onLoadDemo, onToggle }: { nodes: PhaseNode[]; edges: PhaseEdge[]; issues: Issue[]; onAnalyze: () => void; onLoadDemo: () => void; onFocus: (id: string, field?: string) => void; onRun: () => void; onToggle: (end: PhaseNode, value: string, checked: boolean) => void }) {
+function ValidationReview({ nodes, edges, issues, onFocus, onRun, onAnalyze, onToggle }: { nodes: PhaseNode[]; edges: PhaseEdge[]; issues: Issue[]; onAnalyze: () => void; onFocus: (id: string, field?: string) => void; onRun: () => void; onToggle: (end: PhaseNode, value: string, checked: boolean) => void }) {
   return <div className="p2-validation-summary">
-    <div className={`p2-validation-status ${issues.length ? "warning" : ""}`}><ShieldCheck size={19} /><strong>{issues.length ? `${issues.length} 项配置需要修复` : "配置检查通过"}</strong><span>字段定义已检查，实际值需试跑后查看</span><div className="p2-validation-actions">{!issues.length && <button className="p2-load-error-demo" onClick={onLoadDemo}>载入报错示例</button>}{issues.length > 0 && <Button variant="outline" onClick={onAnalyze}><Bot size={15} />AI 诊断并修复</Button>}<Button variant="outline" onClick={onRun} disabled={Boolean(issues.length)}>选择试跑输入</Button></div></div>
+    <div className={`p2-validation-status ${issues.length ? "warning" : ""}`}><ShieldCheck size={19} /><strong>{issues.length ? `${issues.length} 项配置需要修复` : "配置检查通过"}</strong><span>字段定义已检查，实际值需试跑后查看</span><div className="p2-validation-actions">{issues.length > 0 && <Button variant="outline" onClick={onAnalyze}><Bot size={15} />AI 诊断并修复</Button>}<Button variant="outline" onClick={onRun} disabled={Boolean(issues.length)}>选择试跑输入</Button></div></div>
     {issues.map((issue, index) => <button className="p2-issue-row" key={`${issue.nodeId}-${index}`} onClick={() => onFocus(issue.nodeId, issue.field)}><AlertCircle size={15} /><strong>{nodes.find((node) => node.id === issue.nodeId)?.data.label}</strong><span>{issue.message}</span><ChevronRight size={15} /></button>)}
     <div className="p2-validation-fields"><section><h3>开始节点输入字段</h3><div className="p2-check-fields">{nodes.filter((node) => node.data.operatorId === "control.start").flatMap((node) => outputFields(node.data).map((field) => <button key={`${node.id}-${field.key}`} onClick={() => onFocus(node.id)}>{field.key}</button>))}</div></section>
     <section><h3>算子输出字段 <small>点击可查看节点配置</small></h3>{nodes.filter((node) => !node.data.readOnly && node.data.operatorId !== "control.start" && node.data.kind !== "result").map((node) => <div className="p2-node-output-row" key={node.id}><button className="p2-output-node" onClick={() => onFocus(node.id)}>{node.data.label}<ChevronRight size={12} /></button><div className="p2-check-fields">{deliverable(node).map((field) => <button key={field.key} title={`${node.data.label} · ${field.key} · ${field.type}`} onClick={() => onFocus(node.id, node.data.purpose === "understanding" ? "AI输出结构" : undefined)}>{field.key.includes(".") ? field.key.split(".").slice(1).join(".") : field.key}</button>)}</div></div>)}</section></div>
@@ -354,8 +334,8 @@ function TrialRunReview({ run, stale, selectedNodeId, onSelect, onFocus, onRerun
   const failed = run.failureNode === node.id;
   const notExecuted = run.unexecutedIds?.includes(node.id);
   const inputs = Object.fromEntries(inputFields(node.data).map((field) => [field.key, field.key === "vid" ? run.inputs[0] : "tos://demo/video.mp4"]));
-  const outputs = Object.fromEntries(outputFields(node.data).filter((field) => !field.key.includes(".")).map((field) => [field.key, node.data.operatorId === "control.start" ? run.inputs[0] : field.key === "tos_path" ? "tos://demo/video.mp4" : /output/.test(field.key) ? { title: "演示视频", keywords: "运动,户外", summary: "示例产出" } : "演示值"]));
-  return <div className="p2-trial-review" aria-label="本次试跑详情"><div className="p2-trial-overview"><span>{run.count} 条数据 · 版本 {run.revision} · {run.startedAt}</span><small>本地演示，未执行真实算子</small><Button variant="outline" size="sm" disabled={run.phase === "running"} onClick={onRerun}>再次试跑</Button></div>{stale && <p className="p2-callout warning">当前草稿已变化，以下保留本次运行的记录。</p>}<div className="p2-trial-detail"><nav aria-label="试跑节点">{run.nodes.filter((item) => !item.data.readOnly).map((item) => <button key={item.id} aria-pressed={item.id === node.id} onClick={() => onSelect(item.id)}>{item.data.label}<small>{run.phase === "running" ? "运行中" : run.failureNode === item.id ? "失败" : run.unexecutedIds?.includes(item.id) ? "未执行" : "完成"}</small></button>)}</nav><section><header><strong>{node.data.label}</strong><button onClick={() => onFocus(node.id)}>定位画布<ChevronRight size={13} /></button></header>{run.failures.filter((issue) => issue.nodeId === node.id).map((issue, index) => <p className="p2-error" key={index}>{issue.field} · {issue.message}</p>)}<div className="p2-trial-io"><section><h3>节点输入</h3><pre>{notExecuted ? "上游失败，本节点未执行" : JSON.stringify(inputs, null, 2)}</pre></section><section><h3>节点输出</h3><pre>{run.phase === "running" ? "尚在运行" : failed ? "此节点失败，没有产出" : notExecuted ? "上游失败，本节点未执行" : JSON.stringify(outputs, null, 2)}</pre></section></div></section></div></div>;
+  const outputs = Object.fromEntries(outputFields(node.data).filter((field) => !field.key.includes(".")).map((field) => [field.key, node.data.operatorId === "control.start" ? run.inputs[0] : field.key === "tos_path" ? "tos://demo/video.mp4" : /output/.test(field.key) ? { title: "视频样本", keywords: "运动,户外", summary: "内容摘要" } : "样本值"]));
+  return <div className="p2-trial-review" aria-label="本次试跑详情"><div className="p2-trial-overview"><span>{run.count} 条数据 · 版本 {run.revision} · {run.startedAt}</span><Button variant="outline" size="sm" disabled={run.phase === "running"} onClick={onRerun}>再次试跑</Button></div>{stale && <p className="p2-callout warning">当前草稿已变化，以下保留本次运行的记录。</p>}<div className="p2-trial-detail"><nav aria-label="试跑节点">{run.nodes.filter((item) => !item.data.readOnly).map((item) => <button key={item.id} aria-pressed={item.id === node.id} onClick={() => onSelect(item.id)}>{item.data.label}<small>{run.phase === "running" ? "运行中" : run.failureNode === item.id ? "失败" : run.unexecutedIds?.includes(item.id) ? "未执行" : "完成"}</small></button>)}</nav><section><header><strong>{node.data.label}</strong><button onClick={() => onFocus(node.id)}>定位画布<ChevronRight size={13} /></button></header>{run.failures.filter((issue) => issue.nodeId === node.id).map((issue, index) => <p className="p2-error" key={index}>{issue.field} · {issue.message}</p>)}<div className="p2-trial-io"><section><h3>节点输入</h3><pre>{notExecuted ? "上游失败，本节点未执行" : JSON.stringify(inputs, null, 2)}</pre></section><section><h3>节点输出</h3><pre>{run.phase === "running" ? "尚在运行" : failed ? "此节点失败，没有产出" : notExecuted ? "上游失败，本节点未执行" : JSON.stringify(outputs, null, 2)}</pre></section></div></section></div></div>;
 }
 
 function PrototypeInner() {
@@ -367,12 +347,12 @@ function PrototypeInner() {
   const [draftChanged, setDraftChanged] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<{ id: string | null } | null>(null);
   const [library, setLibrary] = useState(false);
-  const [query, setQuery] = useState("");
-  const [source, setSource] = useState<"engineering" | "custom" | "all">("engineering");
-  const [kind, setKind] = useState<"all" | "node" | "flow">("all");
-  const [domain, setDomain] = useState("all");
-  const [customVersion, setCustomVersion] = useState("V2");
-  const [candidateDetail, setCandidateDetail] = useState<string | null>(null);
+  const [libraryMode, setLibraryMode] = useState<SearchMode>("operator");
+  const activeCandidates = candidates;
+  const activeFlows = useMemo(() => flowSource.filter((flow) => activeCandidates.some((candidate) => candidate.id === flow.id && canUseCapability(candidate))), [activeCandidates]);
+  const [workspace, setWorkspace] = useState<{ id: string; title: string; origin?: DraftOrigin; returnId?: string }>({ id: "original", title: "视频内容标注" });
+  const [recentDraftId, setRecentDraftId] = useState<string | null>(null);
+  const forkSequence = useRef(0);
   const [addContext, setAddContext] = useState<{ source?: string; edge?: string } | null>(null);
   const [previewSource, setPreviewSource] = useState<string | null>(null);
   const [schemaImport, setSchemaImport] = useState(false);
@@ -392,9 +372,10 @@ function PrototypeInner() {
   const [failureDemo, setFailureDemo] = useState(false);
   const [diagnosis, setDiagnosis] = useState<DiagnosisContext | null>(null);
   const [diagnoses, setDiagnoses] = useState<Record<string, DiagnosisContext>>({});
-  const [diagnoserEnabled, setDiagnoserEnabled] = useState(false);
+  const [diagnoserEnabled, setDiagnoserEnabled] = useState(true);
   const [diagnosisOpen, setDiagnosisOpen] = useState(false);
   const [diagnosisReferences, setDiagnosisReferences] = useState<Record<string, NodeReference[]>>({});
+  const [archivedDiagnoses, setArchivedDiagnoses] = useState<Record<string, { contexts: Record<string, DiagnosisContext>; references: Record<string, NodeReference[]>; revision: number; nodeIds: string[] }>>({});
   const [lastRepair, setLastRepair] = useState<{ plan: ConfigurationPlan; revision: number } | null>(null);
   const runSequence = useRef(0);
   const [threeColumns, setThreeColumns] = useState(false);
@@ -409,7 +390,59 @@ function PrototypeInner() {
   const future = useRef<Snapshot[]>([]);
   const timers = useRef<number[]>([]);
   const stage = useRef<HTMLDivElement>(null);
-  const { fitView, setCenter, getZoom, screenToFlowPosition } = useReactFlow<PhaseNode, PhaseEdge>();
+  const { fitView, setCenter, getZoom, getViewport, setViewport, screenToFlowPosition } = useReactFlow<PhaseNode, PhaseEdge>();
+
+  const rememberWorkspace = () => clone({
+    workspace, nodes, edges, selectedId, draft, draftChanged, revision, saved,
+    history: history.current, future: future.current, historyCounts, viewport: getViewport(),
+    run, runNodeId, dock, expandedDock, diagnosis, diagnoses, diagnosisReferences, diagnosisOpen,
+    diagnoserEnabled, lastRepair, aggregateRows, advanced, modelWarning, previewSource,
+    schemaImport, schemaText, schemaError, importPreview, sampleInput, failureDemo,
+  });
+  const workspaces = useRef<Record<string, ReturnType<typeof rememberWorkspace>>>({});
+  const archiveCurrentDiagnosis = () => setArchivedDiagnoses((previous) => ({ ...previous, [workspace.id]: { contexts: diagnoses, references: diagnosisReferences, revision, nodeIds: nodes.map((node) => node.id) } }));
+  const restoreWorkspace = (id: string) => {
+    if (run?.phase === "running") { setNotice("请等待当前试跑结束，再切换草稿"); return; }
+    const previous = workspaces.current[id];
+    if (!previous) { setNotice("此草稿已不在当前页面中"); return; }
+    workspaces.current[workspace.id] = rememberWorkspace();
+    archiveCurrentDiagnosis();
+    setWorkspace(previous.workspace); setNodes(previous.nodes); setEdges(previous.edges);
+    setSelectedId(previous.selectedId); setDraft(previous.draft); setDraftChanged(previous.draftChanged);
+    setRevision(previous.revision); setSaved(previous.saved);
+    history.current = previous.history; future.current = previous.future; setHistoryCounts(previous.historyCounts); setHistoryTick((value) => value + 1);
+    setRun(previous.run); setRunNodeId(previous.runNodeId); setDock(previous.dock); setExpandedDock(previous.expandedDock);
+    setDiagnosis(previous.diagnosis); setDiagnoses(previous.diagnoses); setDiagnosisReferences(previous.diagnosisReferences);
+    setDiagnosisOpen(previous.diagnosisOpen); setDiagnoserEnabled(previous.diagnoserEnabled); setLastRepair(previous.lastRepair);
+    setAggregateRows(previous.aggregateRows); setAdvanced(previous.advanced); setModelWarning(previous.modelWarning); setPreviewSource(previous.previewSource);
+    setSchemaImport(previous.schemaImport); setSchemaText(previous.schemaText); setSchemaError(previous.schemaError); setImportPreview(previous.importPreview);
+    setSampleInput(previous.sampleInput); setFailureDemo(previous.failureDemo);
+    setLibrary(false); setThreeColumns(false); setMappingOpen(false); setPendingSelection(null); setPublishOpen(false);
+    requestAnimationFrame(() => setViewport(previous.viewport));
+    setNotice("已恢复草稿及未保存配置；修改版仍保留在当前页面");
+  };
+  const forkFlow = (candidate: Candidate) => {
+    if (run?.phase === "running") { setNotice("请等待当前试跑结束，再创建修改版"); return; }
+    const currentCandidate = activeCandidates.find((item) => item.id === candidate.id);
+    const resolved = currentCandidate && selectCapabilityVersion(currentCandidate, candidate.flow?.version);
+    if (!resolved?.flow) { setNotice("来源版本已不可用，请重新检索"); return; }
+    try {
+      const id = `flow-draft-${++forkSequence.current}`;
+      const created = buildFlowDraft(resolved.flow, id);
+      const nextNodes: PhaseNode[] = created.nodes.map((node) => ({ ...node, data: { ...node.data, ...(understandingIds.includes(node.data.operatorId) ? { purpose: "understanding" as const, label: "AI 理解与标注" } : {}) } }));
+      workspaces.current[workspace.id] = rememberWorkspace();
+      archiveCurrentDiagnosis();
+      setWorkspace({ id, title: `${resolved.name} · 修改版`, origin: created.origin, returnId: workspace.id }); setRecentDraftId(id);
+      setNodes(nextNodes); setEdges(created.edges); setSelectedId(null); setDraft(null); setDraftChanged(false);
+      setRevision(1); setSaved(false); history.current = []; future.current = []; setHistoryCounts({ undo: 0, redo: 0 });
+      setRun(null); setRunNodeId(""); setDock("none"); setExpandedDock(false);
+      setDiagnosis(null); setDiagnoses({}); setDiagnosisReferences({}); setDiagnosisOpen(false); setLastRepair(null);
+      setAggregateRows([]); setAdvanced(false); setModelWarning(""); setPreviewSource(null); setSchemaImport(false);
+      setLibrary(false); setThreeColumns(false); setMappingOpen(false); setPendingSelection(null); setAddContext(null);
+      setNotice(`已从 ${resolved.flow.version} 创建独立草稿，建议改动未自动应用；原草稿完整保留`);
+      requestAnimationFrame(() => fitView({ nodes: nextNodes.map((node) => ({ id: node.id })), padding: 0.25, maxZoom: 1 }));
+    } catch (error) { setNotice(error instanceof Error ? error.message : "无法创建草稿，请检查来源"); }
+  };
 
   useEffect(() => () => timers.current.forEach(window.clearTimeout), []);
   useEffect(() => { if (!notice) return; const id = window.setTimeout(() => setNotice(""), 4000); return () => window.clearTimeout(id); }, [notice]);
@@ -418,25 +451,21 @@ function PrototypeInner() {
   const missing = issues.filter((i) => i.nodeId === selectedId);
   const op = draft && getOperator(draft.operatorId);
   const stale = Boolean(run && run.revision !== revision);
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return candidates.filter((c) => (source === "all" || c.source === source) && (kind === "all" || c.kind === kind) && (domain === "all" || c.domains.includes(domain)) && (!q || [c.id, c.name, c.description, ...(c.purpose === "understanding" ? [...understandingIds, "Gemini", "DeepSeek", "Qwen"] : []), ...(c.flow?.nodes.map((n) => `${n.operatorId} ${getOperator(n.operatorId)?.name ?? ""}`) ?? [])].join(" ").toLowerCase().includes(q)));
-  }, [query, source, kind, domain]);
   const changed = () => { setRevision((v) => v + 1); setSaved(false); };
   const capture = () => { history.current.push(clone({ nodes, edges })); future.current = []; setHistoryTick((v) => v + 1); setHistoryCounts({ undo: history.current.length, redo: 0 }); };
   const choose = (id: string | null, currentNodes = nodes) => {
     setSelectedId(id); setDraft(id ? clone(currentNodes.find((n) => n.id === id)!.data) : null);
-    setDraftChanged(false); setModelWarning(""); setAdvanced(false); setPreviewSource(null); setSchemaImport(false); setAggregateRows(String(id ? currentNodes.find((n) => n.id === id)?.data.config["演示聚合字段"] ?? "" : "").split(",").filter(Boolean));
+    setDraftChanged(false); setModelWarning(""); setAdvanced(false); setPreviewSource(null); setSchemaImport(false); setAggregateRows(String(id ? currentNodes.find((n) => n.id === id)?.data.config["聚合字段"] ?? "" : "").split(",").filter(Boolean));
   };
   const requestChoose = (id: string | null) => {
     if (id === selectedId) return;
     if (draftChanged) { setPendingSelection({ id }); return; } choose(id);
   };
-  const assembledDraft = () => draft ? { ...draft, config: { ...draft.config, "演示聚合字段": aggregateRows.join(",") } } : null;
+  const assembledDraft = () => draft ? { ...draft, config: { ...draft.config, "聚合字段": aggregateRows.join(",") } } : null;
   const saveConfig = () => {
     if (!draft || !selectedId) return;
     capture(); setNodes((ns) => ns.map((n) => n.id === selectedId ? { ...n, data: assembledDraft()! } : n));
-    setDraftChanged(false); changed(); setNotice("配置已保存到演示草稿");
+    setDraftChanged(false); changed(); setNotice("配置已保存");
   };
   const updateDraft = (updater: (d: PhaseData) => PhaseData) => { setDraft((d) => d ? updater(d) : d); setDraftChanged(true); };
   const config = (key: string, value: WorkflowConfigValue) => updateDraft((d) => ({ ...d, config: { ...d.config, [key]: value } }));
@@ -451,25 +480,40 @@ function PrototypeInner() {
     updateDraft((d) => ({ ...d, mappings: { ...d.mappings, [key]: m } }));
   };
   const openLibrary = useCallback((ctx: { source?: string; edge?: string } | null = null) => {
-    setLibrary(true); setExpandedDock(false); setQuery(""); setCandidateDetail(null); setAddContext(ctx); setThreeColumns(false);
+    setLibraryMode("operator"); setLibrary(true); setExpandedDock(false); setAddContext(ctx); setThreeColumns(false);
   }, []);
-  const addCandidate = (candidate: Candidate) => {
-    const c = candidate.source === "custom" ? { ...candidate, flow: customVersion === "V1" ? customFlowV1 : customFlow } : candidate;
+  const addCandidate = (candidate: Candidate, dropPosition?: { x: number; y: number }) => {
+    const currentCandidate = activeCandidates.find((item) => item.id === candidate.id);
+    const selectedCandidate = currentCandidate && selectCapabilityVersion(currentCandidate, candidate.flow?.version);
+    const c = selectedCandidate?.purpose === "understanding" && understandingIds.includes(candidate.operatorId ?? "") ? { ...selectedCandidate, operatorId: candidate.operatorId } : selectedCandidate;
+    if (!c || !canUseCapability(c)) { setNotice("该能力已不可用，请重新检索"); return; }
     if (draftChanged) { setNotice("请先保存当前节点配置，再添加节点"); return; }
     capture();
-    const currentEdge = edges.find((e) => e.id === addContext?.edge);
-    const sourceNode = nodes.find((n) => n.id === (currentEdge?.source ?? addContext?.source));
+    const currentEdge = !dropPosition ? edges.find((e) => e.id === addContext?.edge) : undefined;
+    const sourceNode = !dropPosition ? nodes.find((n) => n.id === (currentEdge?.source ?? addContext?.source)) : undefined;
     const targetNode = currentEdge && nodes.find((n) => n.id === currentEdge.target);
     const rect = stage.current?.getBoundingClientRect();
     const middle = screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 900) / 2, y: (rect?.top ?? 100) + (rect?.height ?? 500) / 2 });
-    const pos = sourceNode ? currentEdge ? { x: sourceNode.position.x + 210, y: sourceNode.position.y } : nextNodePosition(sourceNode, nodes) : c.flow ? { x: middle.x, y: Math.max(middle.y, ...nodes.filter((n) => !n.parentId).map((n) => n.position.y + 165)) } : middle;
+    const pos = dropPosition ?? (sourceNode ? currentEdge ? { x: sourceNode.position.x + 210, y: sourceNode.position.y } : nextNodePosition(sourceNode, nodes) : c.flow ? { x: middle.x, y: Math.max(middle.y, ...nodes.filter((n) => !n.parentId).map((n) => n.position.y + 165)) } : middle);
     const id = allocateNodeId();
     const node: PhaseNode = c.flow ? { id, type: "phase2", position: pos, data: { operatorId: c.id, label: c.name, kind: "flow", flowId: c.id, flowVersion: c.flow.version, source: c.source, config: {}, mappings: {}, validationCount: 0 } } : makeNode(c.operatorId ?? c.id, id, pos.x, pos.y, { ...(c.purpose ? { purpose: c.purpose, label: c.name } : {}) });
     // Insertion changes explicit edges; it never silently guesses field mappings.
-    const nextNodes = [...nodes.map((n) => targetNode && n.position.x >= targetNode.position.x && !n.parentId ? { ...n, position: { ...n.position, x: n.position.x + 210 } } : n), node];
+    const nextNodes = [...nodes.map((n) => !dropPosition && targetNode && n.position.x >= targetNode.position.x && !n.parentId ? { ...n, position: { ...n.position, x: n.position.x + 210 } } : n), node];
     const nextEdges = currentEdge ? [...edges.filter((e) => e.id !== currentEdge.id), makeEdge(currentEdge.source, id, { sourceHandle: currentEdge.sourceHandle }), makeEdge(id, currentEdge.target, { targetHandle: currentEdge.targetHandle })] : sourceNode ? [...edges, makeEdge(sourceNode.id, id)] : edges;
-    setNodes(nextNodes); setEdges(nextEdges); choose(id, nextNodes); setLibrary(false); changed(); setNotice("节点已添加；请检查输入来源。可撤销添加与接线。");
-    window.setTimeout(() => setCenter(pos.x + 80, pos.y + 55, { zoom: Math.min(getZoom(), 1), duration: 220 }), 80);
+    setNodes(nextNodes); setEdges(nextEdges); changed(); setNotice("节点已添加；请检查输入来源。可撤销添加与接线。");
+    if (!dropPosition) {
+      choose(id, nextNodes); setLibrary(false);
+      window.setTimeout(() => setCenter(pos.x + 80, pos.y + 55, { zoom: Math.min(getZoom(), 1), duration: 220 }), 80);
+    }
+
+  };
+  const dropCapability = (event: DragEvent<HTMLDivElement>) => {
+    const value = event.dataTransfer.getData(CAPABILITY_DRAG_MIME);
+    if (!value) return;
+    event.preventDefault();
+    const candidate = resolveCapabilityDrop(value, activeCandidates);
+    if (!candidate) { setNotice("拖入的能力或版本已不可用，请重新检索"); return; }
+    addCandidate(candidate, screenToFlowPosition({ x: event.clientX, y: event.clientY }));
   };
   const expandFlow = (id: string) => {
     const n = nodes.find((x) => x.id === id); const f = n && getFlow(n.data); if (!n || !f) return;
@@ -591,7 +635,7 @@ function PrototypeInner() {
     const failureNode = failureDemo ? active.find((n) => n.data.purpose)?.id ?? active[1]?.id : undefined;
     const failureIndex = active.findIndex((n) => n.id === failureNode);
     const failing = snapshot.nodes.find((node) => node.id === failureNode);
-    const failures: Issue[] = failing ? (failing.data.purpose === "understanding" ? outputShape(failing.data).slice(0, 2).map((field, index) => ({ nodeId: failing.id, field: field.key, message: index === 0 && field.required ? `演示返回缺少必填字段 ${field.key}` : `演示返回字段 ${field.key} 不符合 ${field.type} 类型约束` })) : [{ nodeId: failing.id, message: "演示节点执行异常，请核对输入与输出约定" }]) : [];
+    const failures: Issue[] = failing ? (failing.data.purpose === "understanding" ? outputShape(failing.data).slice(0, 2).map((field, index) => ({ nodeId: failing.id, field: field.key, message: index === 0 && field.required ? `返回缺少必填字段 ${field.key}` : `返回字段 ${field.key} 不符合 ${field.type} 类型约束` })) : [{ nodeId: failing.id, message: "节点执行异常，请核对输入与输出约定" }]) : [];
     const executing = failureNode ? active.slice(0, failureIndex + 1) : active;
     executing.forEach((n, i) => {
       timers.current.push(window.setTimeout(() => setNodes((ns) => ns.map((x) => x.id === n.id ? { ...x, data: { ...x.data, runState: "running" } } : x)), 220 + i * 650));
@@ -601,7 +645,7 @@ function PrototypeInner() {
       const unexecutedIds = failureNode ? active.slice(failureIndex + 1).map((n) => n.id) : [];
       setRun({ ...snapshot, failures, unexecutedIds, phase: failureNode ? "failed" : "passed", failureNode, failureReason: failures.map((issue) => issue.message).join("；") });
       if (failureNode) setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, runState: n.id === failureNode ? "failed" : unexecutedIds.includes(n.id) ? "idle" : "succeeded" } })));
-      setNotice(failureDemo ? "试跑演示失败，点击底部查看问题" : "试跑演示已跑通，点击底部查看产出");
+      setNotice(failureDemo ? "试跑失败，点击底部查看问题" : "试跑已跑通，点击底部查看产出");
     }, executing.length * 650 + 1000));
   };
   const openDiagnosis = (source: DiagnosisContext["source"]) => {
@@ -701,20 +745,6 @@ function PrototypeInner() {
       return { ok: true, revision: revision + 1, message: "已撤销本次配置应用，恢复应用前的字段绑定与配置。" };
     } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "撤销失败" }; }
   };
-  const loadDiagnosisDemo = () => {
-    if (draftChanged) { setNotice("请先保存当前配置，再载入报错示例"); return; }
-    let count = 0;
-    const next = nodes.map((node) => {
-      const entry = Object.entries(node.data.mappings).find(([, binding]) => binding.sourceType === "upstream");
-      if (count >= 2 || node.data.readOnly || !entry) return node;
-      count++;
-      return { ...node, data: { ...node.data, mappings: { ...node.data.mappings, [entry[0]]: { ...entry[1], sourceField: "missing_demo_field" } } } };
-    });
-    if (!count) { setNotice("当前没有适合演示的已有字段绑定，请在初始示例流程中体验"); return; }
-    capture(); setNodes(next); changed(); if (selectedId && next.some((node) => node.id === selectedId)) choose(selectedId, next);
-    setDock("validation"); setExpandedDock(true); setLibrary(false);
-    setNotice(`已载入 ${count} 个字段绑定报错示例，请点击“AI 诊断并修复”`);
-  };
   const keyedNodes = nodes.map((n) => ({ ...n, selected: n.id === selectedId, data: { ...n.data, sourcePreview: n.id === previewSource, issue: issues.find((i) => i.nodeId === n.id)?.message, onAdd: (id: string) => openLibrary({ source: id }), onReference: diagnoserEnabled && diagnosis && diagnosis.nodes.some((node) => node.id === n.id) ? referenceNode : undefined, onExpand: expandFlow } }));
   const keyedEdges = edges.map((e) => {
     const target = nodes.find((node) => node.id === e.target);
@@ -749,7 +779,7 @@ function PrototypeInner() {
     const prompt = String(draft.config["提示词"] ?? "");
     const promptFormatConflict = Boolean(draft.purpose === "understanding" && (/(json|schema|输出格式|输出字段)/i.test(prompt) || aiShape.some((field) => field.key.length > 1 && prompt.toLowerCase().includes(field.key.toLowerCase()))));
     const updateShape = (next: OutputShapeField[]) => config("AI输出结构", JSON.stringify(next));
-    const referenceCount = (field: OutputShapeField) => nodes.reduce((count, node) => count + (node.id === selectedId ? 0 : Object.values(node.data.mappings).filter((binding) => binding.sourceType === "upstream" && binding.sourceNodeId === selectedId && binding.sourceField === `${baseOutput?.key}.${field.key}`).length + (Array.isArray(node.data.config["交付字段"]) ? node.data.config["交付字段"].filter((value) => value === `${selectedId}|${baseOutput?.key}.${field.key}`).length : 0)), 0);
+    const referenceCount = (field: OutputShapeField) => nodes.reduce((count, node) => count + (node.id === selectedId ? 0 : Object.values(node.data.mappings).filter((binding) => binding.sourceType === "upstream" && binding.sourceNodeId === selectedId && binding.sourceField === outputColumnPath(field.key, baseOutput?.key)).length + (Array.isArray(node.data.config["交付字段"]) ? node.data.config["交付字段"].filter((value) => value === `${selectedId}|${baseOutput?.key}.${field.key}`).length : 0)), 0);
     const example = Object.fromEntries(aiShape.map((field) => [field.key, field.type === "Boolean" ? true : ["Int", "Float"].includes(field.type) ? 1 : field.choices?.[0] ?? field.description ?? "示例文本"]));
     return <aside className={`p2-inspector ${wide ? "wide" : ""}`} aria-label="节点配置抽屉">
     <header><button aria-label="关闭节点配置" onClick={() => { if (wide) setThreeColumns(false); else requestChoose(null); }}><X size={20} /></button><div><strong>{draft?.label}</strong>{draft?.purpose && <small>{draft.operatorId}</small>}</div><button className="p2-expand-button" aria-label="展开输入配置输出对照" title="展开输入／配置／输出" onClick={() => { setThreeColumns(true); setLibrary(false); setExpandedDock(false); }}><Maximize2 size={16} /></button></header>
@@ -773,8 +803,8 @@ function PrototypeInner() {
         {draft.operatorId === "control.result" ? <section><h3>流程交付字段</h3><p className="p2-field-help">取消选择只会从流程最终结果中移除字段，不会删除节点产出；之后可重新勾选。</p><div className="p2-delivery-list">{deliveryFields.map(({ node, field, value }) => <label key={value}><input type="checkbox" checked={configuredDelivery.includes(value)} onChange={(event) => setDelivery(value, event.target.checked)} /><span><strong>{node.data.label}<span className="p2-source-divider">输出</span><code>{field.key}</code></strong><small>{field.type}</small></span></label>)}{configuredDelivery.filter((value) => !deliveryFields.some((option) => option.value === value)).map((value) => <label className="invalid" key={value}><input type="checkbox" checked onChange={() => setDelivery(value, false)} /><span><strong>来源已失效 · {value.split("|").slice(1).join("|")}</strong><small>移除失效交付引用</small></span></label>)}{deliveryFields.length === 0 && <small>上游还没有可交付字段。</small>}</div></section> : draft.purpose === "understanding" ? null : <section><h3>输出字段</h3><div className="p2-field-tags output">{outputFields(draft).length ? outputFields(draft).map((field) => <span key={field.key}>{fieldCopyButton(selectedId!, "outputs", field.key)}</span>) : <small>按实际配置产生输出</small>}</div></section>}
         {!draft?.flowId && !draft?.readOnly && <>
           {op?.config.filter((f) => !/超时|阶段QPS|阶段并发|自动重命名|跳过/.test(f.key)).map(renderConfigField)}
-          {draft.purpose === "understanding" && <section className="p2-output-shape" id="p2-field-AI输出结构"><div className="p2-shape-heading"><h3>AI 输出列</h3><button onClick={() => { setSchemaText(""); setSchemaError(""); setImportPreview(null); setSchemaImport(true); }}>导入已有 Schema</button></div><p className="p2-field-help">一列一个字段，直接用于 CSV 和下游节点。修改这里会自动生成平级 JSON Schema，提示词只需描述标注任务。</p>{promptFormatConflict && <div className="p2-callout warning">提示词中可能已有输出格式，请核对是否与下方输出列一致；原提示词会保留。</div>}{outputShapeErrors(aiShape).map((error) => <p className="p2-error" key={error}>{error}</p>)}<div className="p2-shape-table-head"><span>列名</span><span>内容类型</span><span>必填</span></div>{aiShape.map((field, index) => { const references = referenceCount(field); return <div className="p2-column-row" key={index}><div className="p2-column-controls"><Input aria-label={`AI 输出字段 ${index + 1}`} value={field.key} placeholder="如 title" onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, key: event.target.value } : item))} /><select aria-label={`${field.key || "新字段"} 类型`} value={field.type} onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, type: event.target.value, choices: undefined } : item))}>{!(field.type in columnTypes) && <option value={field.type}>需调整：{field.type}</option>}{Object.entries(columnTypes).map(([type, label]) => <option value={type} key={type}>{label}</option>)}</select><input aria-label={`${field.key || "新字段"}必填`} type="checkbox" checked={field.required} onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, required: event.target.checked } : item))} /><button aria-label={`删除输出字段 ${field.key}`} onClick={() => updateShape(aiShape.filter((_, row) => row !== index))}><X size={14} /></button></div><Input aria-label={`${field.key || "新字段"}说明`} value={field.description} placeholder="这列标注什么？如：视频标题，20 字以内" onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, description: event.target.value } : item))} /><div className="p2-column-foot"><span><GitBranch size={12} />输出列 {field.key ? fieldCopyButton(selectedId!, "outputs", `${baseOutput?.key}.${field.key}`) : <code>待命名</code>} · 下游可引用</span><small>{references ? `${references} 处已引用` : "尚无显式引用"}</small></div>{references > 0 && <small className="p2-shape-impact">删除或改名会使已有引用失效，保存后会提示修复。</small>}{field.type === "String" && <details className="p2-column-rules"><summary>限定可选值{field.choices?.length ? ` · ${field.choices.length} 项` : "（选填）"}</summary><Input aria-label={`${field.key || "新字段"}可选值`} placeholder="如：体育，新闻，生活；留空表示不限" value={field.choices?.join("，") ?? ""} onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, choices: event.target.value.split(/[,，]/).filter(Boolean) } : item))} /></details>}</div>; })}<button className="p2-dashed-add" onClick={() => { let key = `field_${aiShape.length + 1}`; while (aiShape.some((field) => field.key === key)) key += "_new"; updateShape([...aiShape, { key, type: "String", required: true, description: "" }]); }}><Plus size={16} />添加输出列</button><details className="p2-schema-preview"><summary>查看生成的 JSON Schema 与输出示例</summary><strong>JSON Schema · 自动生成</strong><pre>{JSON.stringify(generatedSchema, null, 2)}</pre><strong>平级输出示例 · 每个字段对应一列</strong><pre>{JSON.stringify(example, null, 2)}</pre></details></section>}
-          {draft?.operatorId === "phase2.ratio" && <><div className="p2-config-block"><label>分支数</label><select value={Number(draft.config["分支数"] ?? 2)} onChange={(e) => config("分支数", Number(e.target.value))}>{[2, 3, 4, 5].map((v) => <option key={v}>{v}</option>)}</select><small>原型示例选择，不代表生产分支数上限</small></div>{Array.from({ length: Number(draft.config["分支数"] ?? 2) }, (_, i) => renderConfigField({ key: `分支${i + 1}比例`, type: "Int" }))}<p>比例合计需为 100%，按实际到达数据分配</p></>}
+          {draft.purpose === "understanding" && <section className="p2-output-shape" id="p2-field-AI输出结构"><div className="p2-shape-heading"><h3>AI 输出列</h3><button onClick={() => { setSchemaText(""); setSchemaError(""); setImportPreview(null); setSchemaImport(true); }}>导入已有 Schema</button></div><p className="p2-field-help">一列一个字段，直接用于 CSV 和下游节点。修改这里会自动生成平级 JSON Schema，提示词只需描述标注任务。</p>{promptFormatConflict && <div className="p2-callout warning">提示词中可能已有输出格式，请核对是否与下方输出列一致；原提示词会保留。</div>}{outputShapeErrors(aiShape).map((error) => <p className="p2-error" key={error}>{error}</p>)}<div className="p2-shape-table-head"><span>列名</span><span>内容类型</span><span>必填</span></div>{aiShape.map((field, index) => { const references = referenceCount(field); return <div className="p2-column-row" key={index}><div className="p2-column-controls"><Input aria-label={`AI 输出字段 ${index + 1}`} value={field.key} placeholder="如 title" onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, key: event.target.value } : item))} /><select aria-label={`${field.key || "新字段"} 类型`} value={field.type} onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, type: event.target.value, choices: undefined } : item))}>{!(field.type in columnTypes) && <option value={field.type}>需调整：{field.type}</option>}{Object.entries(columnTypes).map(([type, label]) => <option value={type} key={type}>{label}</option>)}</select><input aria-label={`${field.key || "新字段"}必填`} type="checkbox" checked={field.required} onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, required: event.target.checked } : item))} /><button aria-label={`删除输出字段 ${field.key}`} onClick={() => updateShape(aiShape.filter((_, row) => row !== index))}><X size={14} /></button></div><Input aria-label={`${field.key || "新字段"}说明`} value={field.description} placeholder="这列标注什么？如：视频标题，20 字以内" onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, description: event.target.value } : item))} /><div className="p2-column-foot"><span><GitBranch size={12} />输出列 {field.key ? fieldCopyButton(selectedId!, "outputs", outputColumnPath(field.key, baseOutput?.key)) : <code>待命名</code>} · 下游可引用</span><small>{references ? `${references} 处已引用` : "尚无显式引用"}</small></div>{references > 0 && <small className="p2-shape-impact">删除或改名会使已有引用失效，保存后会提示修复。</small>}{field.type === "String" && <details className="p2-column-rules"><summary>限定可选值{field.choices?.length ? ` · ${field.choices.length} 项` : "（选填）"}</summary><Input aria-label={`${field.key || "新字段"}可选值`} placeholder="如：体育，新闻，生活；留空表示不限" value={field.choices?.join("，") ?? ""} onChange={(event) => updateShape(aiShape.map((item, row) => row === index ? { ...item, choices: event.target.value.split(/[,，]/).filter(Boolean) } : item))} /></details>}</div>; })}<button className="p2-dashed-add" onClick={() => { let key = `field_${aiShape.length + 1}`; while (aiShape.some((field) => field.key === key)) key += "_new"; updateShape([...aiShape, { key, type: "String", required: true, description: "" }]); }}><Plus size={16} />添加输出列</button><details className="p2-schema-preview"><summary>查看生成的 JSON Schema 与输出示例</summary><strong>JSON Schema · 自动生成</strong><pre>{JSON.stringify(generatedSchema, null, 2)}</pre><strong>平级输出示例 · 每个字段对应一列</strong><pre>{JSON.stringify(example, null, 2)}</pre></details></section>}
+          {draft?.operatorId === "phase2.ratio" && <><div className="p2-config-block"><label>分支数</label><select value={Number(draft.config["分支数"] ?? 2)} onChange={(e) => config("分支数", Number(e.target.value))}>{[2, 3, 4, 5].map((v) => <option key={v}>{v}</option>)}</select></div>{Array.from({ length: Number(draft.config["分支数"] ?? 2) }, (_, i) => renderConfigField({ key: `分支${i + 1}比例`, type: "Int" }))}<p>比例合计需为 100%，按实际到达数据分配</p></>}
           {draft?.operatorId === "control.condition" && <section><h3>有序条件分流</h3><p>从上到下首条命中</p>{getConditionRules(draft.config).map((r, i) => <div key={r.id} className="p2-config-block"><label>{i + 1}. {r.label}</label><Textarea aria-label={r.label} value={r.expression} onChange={(e) => updateDraft((d) => ({ ...d, config: { ...d.config, 分流规则: getConditionRules(d.config).map((x) => x.id === r.id ? { ...x, expression: e.target.value } : x) } }))} /></div>)}<div className="p2-callout">Else · 承接未命中条件的数据</div></section>}
           {op?.kind === "handler" && <section className="p2-runtime"><h3>运行参数</h3><p className="p2-field-help">QPS 按算子预设阈值控制，此处无需重复配置。</p>{op.config.filter((f) => /超时|阶段并发/.test(f.key)).map(renderConfigField)}{Object.entries(runtimeDefaults).filter(([key]) => !op.config.some((f) => f.key.startsWith(key))).map(([key, value]) => <div className="p2-config-block" key={key}><label htmlFor={`p2-field-${key}`}>{key}</label><Input id={`p2-field-${key}`} type="number" min={1} value={String(draft.config[key] ?? value)} onChange={(event) => config(key, event.target.value === "" ? "" : Number(event.target.value))} /></div>)}</section>}
           {draft.operatorId !== "control.start" && draft.kind !== "result" && <section><button className="p2-section-toggle" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><span>高级设置 <small>跳过算子 · 自动重命名</small></span>{advanced ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</button>{advanced && <><div className="p2-config-block"><label>跳过算子</label><Switch label="跳过算子" value={Boolean(draft.config["跳过"])} onChange={(value) => config("跳过", value)} /><small>启用后跳过本节点；已有下游来源仍需校验。</small></div><div className="p2-config-block"><label>自动重命名</label><Switch label="自动重命名" value={Boolean(draft.config["自动重命名"])} onChange={(value) => config("自动重命名", value)} /></div></>}</section>}
@@ -793,14 +823,17 @@ function PrototypeInner() {
     setNodes(nextNodes); if (selectedId === end.id) setDraft(clone(nextNodes.find((node) => node.id === end.id)!.data)); changed();
   };
 
+  // Inactive workspaces keep mounted panels so conversations and unsent input survive a return.
+  const diagnosisWorkspaces = { ...archivedDiagnoses, [workspace.id]: { contexts: diagnoses, references: diagnosisReferences, revision, nodeIds: nodes.map((node) => node.id) } };
   return <div className="p2-app" data-history-tick={historyTick}>
-    <header className="p2-platform-header"><strong>AI 数据服务平台</strong><span className="p2-prototype-tag">二期交互原型 · 演示数据</span><select className="p2-release-stage" aria-label="原型演示阶段" value={diagnoserEnabled ? "diagnoser" : "fields"} onChange={(event) => { setDiagnoserEnabled(event.target.value === "diagnoser"); if (event.target.value === "fields") setDiagnosisOpen(false); }}><option value="fields">先行：字段引用（文本）</option><option value="diagnoser">后续：Diagnoser（名称链接）</option></select><div><span>当前项目</span><User size={17} /><span>admin</span></div></header>
+    <header className="p2-platform-header"><strong>AI 数据服务平台</strong><div><span>当前项目</span><User size={17} /><span>admin</span></div></header>
     <nav className="p2-platform-rail" aria-label="平台导航"><User size={19} /><span className="active"><Workflow size={19} /></span><Database size={19} /><Settings2 size={19} /></nav>
-    <header className="p2-workflow-header"><div><div><h1>Pipeline 编排 <span>视频内容标注</span></h1><p>草稿 · {saved ? "已保存" : "未保存"} <span>当前内容版本 {revision}</span></p></div></div><div className="p2-header-actions"><Button variant="outline" onClick={() => setNotice("版本管理入口已预留，内容由一期版本管理功能接入")}><History size={16} />版本管理</Button><Button variant="outline" onClick={validateDraft}><FileCheck2 size={16} />校验{issues.length > 0 && <span className="p2-count">{issues.length}</span>}</Button><Button variant="outline" onClick={launchSetup}><Play size={16} />试跑</Button><Button variant="outline" onClick={() => { if (draftChanged) { setNotice("请先保存节点配置，再保存草稿"); return; } setSaved(true); setNotice("演示草稿已保存，仅保留于当前页面"); }}><Save size={16} />保存</Button><Button onClick={() => { if (draftChanged || issues.length) { setNotice("请先保存配置并处理校验提示"); setDock("validation"); setLibrary(false); setExpandedDock(true); return; } setPublishOpen(true); }}><CheckCircle2 size={16} />上线</Button></div></header>
-    <main className={`p2-workspace ${selectedId && !threeColumns ? "has-inspector" : ""}`}>
+    <header className="p2-workflow-header"><div><div><h1>Pipeline 编排 <span>{workspace.title}</span></h1><p>草稿 · {saved ? "已保存" : "未保存"} <span>当前内容版本 {revision}</span></p></div></div><div className="p2-header-actions"><Button variant="outline" onClick={() => setNotice("版本管理暂不可用")}><History size={16} />版本管理</Button><Button variant="outline" onClick={validateDraft}><FileCheck2 size={16} />校验{issues.length > 0 && <span className="p2-count">{issues.length}</span>}</Button><Button variant="outline" onClick={launchSetup}><Play size={16} />试跑</Button><Button variant="outline" onClick={() => { if (draftChanged) { setNotice("请先保存节点配置，再保存草稿"); return; } setSaved(true); setNotice("草稿已保存"); }}><Save size={16} />保存</Button><Button onClick={() => { if (draftChanged || issues.length) { setNotice("请先保存配置并处理校验提示"); setDock("validation"); setLibrary(false); setExpandedDock(true); return; } setPublishOpen(true); }}><CheckCircle2 size={16} />上线</Button></div></header>
+    {(workspace.origin || (recentDraftId && recentDraftId !== workspace.id)) && <div className="p2-draft-origin"><span>{workspace.origin ? <>独立修改版 · 来源 <strong>{workspace.origin.name}</strong> · {workspace.origin.flowId} · {workspace.origin.version}</> : "原草稿已恢复，刚才的修改版仍保留在当前页面。"}</span>{workspace.returnId ? <button onClick={() => restoreWorkspace(workspace.returnId!)}>返回上一草稿（保留修改版）</button> : recentDraftId && <button onClick={() => restoreWorkspace(recentDraftId)}>继续编辑修改版</button>}</div>}
+    <main className={`p2-workspace ${workspace.origin || (recentDraftId && recentDraftId !== workspace.id) ? "has-origin" : ""} ${selectedId && !threeColumns ? "has-inspector" : ""}`}>
       <div className="p2-central">
         <div className="p2-canvas" ref={stage} tabIndex={0} aria-label="工作流画布" onCopy={copyCanvasReference} onPointerDown={(event) => { if (!(event.target as Element).closest("input,textarea,select,button,[contenteditable=true]")) event.currentTarget.focus({ preventScroll: true }); }}>
-          <ReactFlow nodes={keyedNodes} edges={keyedEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onNodeDragStart={capture} onNodeDragStop={() => { changed(); }} onConnect={onConnect} onNodeClick={(_, n) => requestChoose(n.id)} onPaneClick={() => requestChoose(null)} onEdgeClick={(_, edge) => { if (draftChanged) { setNotice("请先保存当前配置"); return; } setEdges((es) => es.map((e) => ({ ...e, selected: e.id === edge.id }))); setInspectedEdge(edge.id); setMappingOpen(true); }} fitView fitViewOptions={{ padding: 0.12, maxZoom: 1 }} minZoom={0.3} maxZoom={1.5} panOnDrag={canvasMode === "pan"} selectionOnDrag={canvasMode === "select"} deleteKeyCode={null} proOptions={{ hideAttribution: true }}>
+          <ReactFlow onDrop={dropCapability} onDragOver={(event) => { if (event.dataTransfer.types.includes(CAPABILITY_DRAG_MIME)) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} nodes={keyedNodes} edges={keyedEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onNodeDragStart={capture} onNodeDragStop={() => { changed(); }} onConnect={onConnect} onNodeClick={(_, n) => requestChoose(n.id)} onPaneClick={() => requestChoose(null)} onEdgeClick={(_, edge) => { if (draftChanged) { setNotice("请先保存当前配置"); return; } setEdges((es) => es.map((e) => ({ ...e, selected: e.id === edge.id }))); setInspectedEdge(edge.id); setMappingOpen(true); }} fitView fitViewOptions={{ padding: 0.12, maxZoom: 1 }} minZoom={0.3} maxZoom={1.5} panOnDrag={canvasMode === "pan"} selectionOnDrag={canvasMode === "select"} deleteKeyCode={null} proOptions={{ hideAttribution: true }}>
             <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#dce0e6" />
             <Controls showInteractive={false} position="bottom-left" />
             <MiniMap position="bottom-right" style={{ width: 120, height: 76 }} pannable zoomable nodeColor="#dbe8f8" />
@@ -815,36 +848,30 @@ function PrototypeInner() {
             { title: "删除选中节点", icon: <Trash2 size={17} />, onClick: removeSelected, disabled: !selected || selected.data.readOnly || selected.data.operatorId === "control.start" },
             { title: "显示完整流程", icon: <Focus size={17} />, onClick: () => fitView({ padding: 0.3, duration: 200 }) },
           ]} />
-          {library && <aside className="p2-library" aria-label="添加节点库"><header><div><h2>添加节点</h2><p>{addContext ? addContext.edge ? "插入到当前连线" : `添加到 ${nodes.find((n) => n.id === addContext.source)?.data.label} 后` : "搜索处理能力或已有工作流"}</p></div><button aria-label="收起节点库" onClick={() => setLibrary(false)}><X size={18} /></button></header><div className="p2-library-search"><Search size={18} /><input autoFocus aria-label="搜索算子或Flow" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="用途、算子名称、模型或 Flow ID" />{query && <button aria-label="清空搜索" onClick={() => setQuery("")}><X size={13} /></button>}</div><div className="p2-source-tabs"><button className={source === "engineering" ? "active" : ""} onClick={() => setSource("engineering")}>研发发布</button><button className={source === "custom" ? "active" : ""} onClick={() => setSource("custom")}>用户工作流</button><button className={source === "all" ? "active" : ""} onClick={() => setSource("all")}>全部</button></div><div className="p2-filter-row"><select aria-label="节点类型" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="all">全部类型</option><option value="node">单节点</option><option value="flow">Flow 节点组</option></select><select aria-label="领域筛选" value={domain} onChange={(e) => setDomain(e.target.value)}><option value="all">全部领域</option>{Object.entries(domainLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div><div className="p2-library-summary">{query ? `${filtered.length} 个匹配结果` : "常用入口"}<small>{source === "custom" ? "同一方案版本集中查看" : "支持搜到 Flow 内的步骤"}</small></div><div className="p2-library-results">{(query || source === "custom" || domain !== "all" || kind !== "all" ? filtered : filtered.slice(0, 8)).map((candidate) => {
-            const versionFlow = customVersion === "V1" ? customFlowV1 : customFlow;
-            const c = candidate.source === "custom" ? { ...candidate, flow: versionFlow, description: versionFlow.description } : candidate;
-            const match = query && c.flow?.nodes.findIndex((n) => `${n.operatorId} ${getOperator(n.operatorId)?.name}`.toLowerCase().includes(query.toLowerCase()));
-            const Icon = c.kind === "flow" ? Workflow : c.purpose ? Bot : Layers;
-            return <article key={c.id} className="p2-candidate"><button className="p2-candidate-main" onClick={() => addCandidate(c)}><span className={`p2-candidate-icon ${c.kind === "flow" ? "flow" : ""}`}><Icon size={21} /></span><div><div className="p2-candidate-title"><strong>{c.name}</strong><span className="p2-tag">{c.kind === "flow" ? `Flow · ${c.flow?.nodes.length} 步骤` : "单节点"}</span></div><p>{c.description}</p><code>{c.id}</code>{typeof match === "number" && match >= 0 && <small className="p2-match">命中第 {match + 1}/{c.flow?.nodes.length} 步：{getOperator(c.flow!.nodes[match].operatorId)?.name}</small>}{c.source === "custom" && <small>用户工作流 · {customVersion} · 来源：生成视频预览 V1</small>}</div></button><div className="p2-candidate-foot"><span>{c.kind === "flow" ? c.source === "custom" ? customVersion : c.flow?.version : c.purpose ? "模型在节点内选择" : c.domains.map((d) => domainLabels[d] ?? d).slice(0, 2).join(" · ")}</span><button onClick={() => setCandidateDetail(candidateDetail === c.id ? null : c.id)}>{candidateDetail === c.id ? "收起" : c.kind === "flow" ? "查看步骤" : "查看详情"}<ChevronDown size={12} /></button></div>{candidateDetail === c.id && <div className="p2-candidate-detail">{c.flow ? c.flow.nodes.map((n, i) => <div key={n.key}><span>{i + 1}</span><p>{getOperator(n.operatorId)?.name}<code>{n.operatorId}</code></p></div>) : <p>{getOperator(c.operatorId ?? "")?.avoidWhen ?? c.description}</p>}{c.source === "custom" && <div><label htmlFor="p2-flow-version">引用版本</label><select id="p2-flow-version" value={customVersion} onChange={(e) => setCustomVersion(e.target.value)}><option value="V2">V2 · 480p（最新）</option><option value="V1">V1 · 720p</option></select><p>同一方案集中显示；添加后引用所选版本，保留参数差异。</p></div>}<Button size="sm" variant="outline" onClick={() => addCandidate(c)}>{c.kind === "flow" ? "整组添加" : "添加节点"}</Button></div>}</article>;
-          })}{!filtered.length && <div className="p2-empty"><Search size={25} /><strong>没有匹配结果</strong><p>试试用途关键词，或调整来源、类型与领域。</p><Button variant="outline" size="sm" onClick={() => { setSource("all"); setDomain("all"); setKind("all"); }}>扩大搜索范围</Button></div>}</div><footer><Info size={13} />目录使用本地样例；研发／用户归属为演示。</footer></aside>}
+          <CapabilityDiscovery open={library} mode={libraryMode} candidates={activeCandidates} flows={activeFlows} sourceOperatorId={libraryMode === "operator" ? nodes.find((node) => node.id === (edges.find((edge) => edge.id === addContext?.edge)?.source ?? addContext?.source))?.data.operatorId : undefined} contextLabel={addContext?.edge ? "插入到当前连线" : addContext?.source ? `添加到 ${nodes.find((node) => node.id === addContext.source)?.data.label} 后` : undefined} onClose={() => setLibrary(false)} onMode={setLibraryMode} onAdd={addCandidate} onFork={forkFlow} />
           {threeColumns && draft && <div className="p2-three-columns"><header><strong>输入 · 配置 · 输出对照</strong><button onClick={() => setThreeColumns(false)}><ArrowLeft size={15} />返回画布</button></header><div><section><h3>输入定义</h3><p>本次试跑数据统一在底部结果区查看。</p>{inputFields(draft).map((f) => <div className="p2-config-block" key={f.key}><label>{f.key}</label><small>{f.type} · {f.semanticType}</small><code>来源：{draft.mappings[f.key]?.sourceField ?? "未绑定"}</code></div>)}</section>{renderInspector(true)}<section><h3>输出定义</h3><p>以下为字段定义；实际产出见底部试跑结果。</p>{outputFields(draft).map((f) => <div className="p2-config-block" key={f.key}><label>{f.key}</label><small>{f.type}</small></div>)}</section></div></div>}
         </div>
         {dock !== "none" && <section className={`p2-dock ${dock === "validation" ? "validation" : ""} ${expandedDock ? "expanded" : ""} ${library ? "with-library" : ""} ${selectedId && !threeColumns ? "with-inspector" : ""}`} aria-label="校验与试跑结果">
           <header><button onClick={() => { if (!expandedDock) setLibrary(false); setExpandedDock(!expandedDock); }}><span className={`p2-dock-icon ${run?.phase ?? ""}`}>{dock === "validation" ? <FileCheck2 size={16} /> : run?.phase === "running" ? <LoaderCircle className="p2-spin" size={16} /> : run?.phase === "passed" ? <CheckCircle2 size={16} /> : run?.phase === "failed" ? <AlertCircle size={16} /> : <Play size={15} />}</span><strong>{dock === "validation" ? `校验 · ${issues.length ? `${issues.length} 项待检查` : "通过"}` : dock === "setup" ? "试跑输入" : run ? run.phase === "running" ? "试跑中" : run.phase === "passed" ? "试跑已跑通" : "试跑失败" : "少量数据验证能否跑通"}</strong><span>{dock === "validation" ? "检查配置，不执行数据" : run ? `${run.count} 条输入 · ${run.startedAt} · 快照 ${run.revision}${stale ? " · 草稿已修改" : ""}` : "试跑结果留在编排页"}</span></button><div>{dock === "run" && run && run.phase !== "running" && <Button variant="outline" size="sm" onClick={() => openDiagnosis("trial")}><Bot size={15} />{run.phase === "failed" ? "AI 诊断并修复" : "结果不符合预期？"}</Button>}{run && <button onClick={() => { setDock("run"); setLibrary(false); setExpandedDock(true); }}>查看结果</button>}{expandedDock ? <button aria-label="收起结果" onClick={() => setExpandedDock(false)}><ChevronDown size={17} /></button> : <button aria-label="展开结果" onClick={() => { setLibrary(false); setExpandedDock(true); }}><ChevronUp size={17} /></button>}</div></header>
-          {expandedDock && <div className="p2-dock-content">{dock === "validation" ? <ValidationReview nodes={nodes} edges={edges} issues={issues} onFocus={focusNode} onRun={launchSetup} onAnalyze={() => openDiagnosis("validation")} onLoadDemo={loadDiagnosisDemo} onToggle={toggleDelivery} /> : dock === "setup" ? <div className="p2-run-setup"><div><h3>试跑输入</h3><p>仅输入一条演示数据；字段来自校验倒推，正式供数时再确认输入文件与列映射。</p><Input aria-label="试跑输入（仅一条）" value={sampleInput} onChange={(e) => setSampleInput(e.target.value)} /></div><div><span className="p2-tag">当前草稿快照 {revision}</span><p>试跑开始后继续编辑，本次结果仍依据开始时的方案。</p><div className="p2-demo-checkbox"><input id="p2-failure-demo" type="checkbox" checked={failureDemo} onChange={(e) => setFailureDemo(e.target.checked)} /><label htmlFor="p2-failure-demo">演示 AI 多字段校验异常</label></div><Button onClick={startRun}><Play size={15} />开始试跑演示</Button><button className="p2-load-error-demo" onClick={loadDiagnosisDemo}>载入可修复的字段映射报错示例</button></div></div> : run ? <TrialRunReview run={run} stale={stale} selectedNodeId={runNodeId} onSelect={setRunNodeId} onFocus={focusNode} onRerun={launchSetup} /> : null}</div>}
+          {expandedDock && <div className="p2-dock-content">{dock === "validation" ? <ValidationReview nodes={nodes} edges={edges} issues={issues} onFocus={focusNode} onRun={launchSetup} onAnalyze={() => openDiagnosis("validation")} onToggle={toggleDelivery} /> : dock === "setup" ? <div className="p2-run-setup"><div><h3>试跑输入</h3><p>输入一条数据；字段来自校验倒推，请确认输入文件与列映射。</p><Input aria-label="试跑输入（仅一条）" value={sampleInput} onChange={(e) => setSampleInput(e.target.value)} /></div><div><span className="p2-tag">当前草稿快照 {revision}</span><p>试跑开始后继续编辑，本次结果仍依据开始时的方案。</p><Button onClick={startRun}><Play size={15} />开始试跑</Button></div></div> : run ? <TrialRunReview run={run} stale={stale} selectedNodeId={runNodeId} onSelect={setRunNodeId} onFocus={focusNode} onRerun={launchSetup} /> : null}</div>}
         </section>}
       </div>
       {selectedId && draft && !threeColumns && renderInspector()}
     </main>
-    {diagnoserEnabled && Object.values(diagnoses).map((context) => <DiagnosisPanel key={context.id} context={context} records={Object.values(diagnoses)} visible={diagnosisOpen && diagnosis?.id === context.id} draftRevision={revision} references={diagnosisReferences[context.id] ?? []} liveNodeIds={nodes.map((node) => node.id)}
+    {Object.entries(diagnosisWorkspaces).flatMap(([owner, entry]) => Object.values(entry.contexts).map((context) => <DiagnosisPanel key={`${owner}:${context.id}`} context={context} records={Object.values(entry.contexts)} visible={owner === workspace.id && diagnoserEnabled && diagnosisOpen && diagnosis?.id === context.id} draftRevision={entry.revision} references={entry.references[context.id] ?? []} liveNodeIds={entry.nodeIds}
       onAddReferences={(references) => setDiagnosisReferences((previous) => ({ ...previous, [context.id]: mergeNodeReferences(previous[context.id] ?? [], references) }))}
       onSelectRecord={(id) => { setDiagnosis(diagnoses[id]); setDiagnosisOpen(true); }}
       onRemoveReference={(key) => setDiagnosisReferences((previous) => ({ ...previous, [context.id]: (previous[context.id] ?? []).filter((item) => nodeReferenceKey(item) !== key) }))}
       onMinimize={() => setDiagnosisOpen(false)} onViewErrors={() => { if ((context.source === "trial" && run?.id !== context.id) || (context.source !== "trial" && revision !== context.revision)) { setNotice("当前记录已成为历史快照，请在本对话的问题点与证据中查看当时的报错"); return; } setDock(context.source === "trial" ? "run" : "validation"); setExpandedDock(true); setLibrary(false); }}
       onFocus={(id, field) => { const node = nodes.find((item) => item.id === id); if (!node) { setNotice("该节点已从当前草稿移除，请对照诊断快照排查"); return; } focusNode(id, node.data.purpose === "understanding" && outputShape(node.data).some((item) => item.key === field || field?.endsWith(`.${item.key}`)) ? "AI输出结构" : field); }}
-      onApply={applyRepair} onUndo={undoRepair} onNotice={setNotice} />)}
+      onApply={applyRepair} onUndo={undoRepair} onNotice={setNotice} />))}
     {!diagnosisOpen && <button className="p2-diagnosis-launcher" aria-label="打开 Diagnoser" onClick={() => { if (diagnosis) { setDiagnoserEnabled(true); setDiagnosisOpen(true); } else { if (draftChanged) { setNotice("请先保存当前配置，再发起诊断"); return; } openDiagnosis("draft"); } }}><Bot size={21} /><strong>Diagnoser</strong></button>}
     <footer className="p2-status-footer"><span>当前项目 · 用户工作流草稿</span><span>复制节点引用：选中节点后 Ctrl/Cmd+C　缩放：滚轮</span></footer>
     {notice && <div className="p2-toast" role="status"><Info size={16} />{notice}</div>}
     {pendingSelection && <Modal title="当前节点配置尚未保存" onClose={() => setPendingSelection(null)}><p>切换节点前，保留或放弃本次修改。</p><footer><Button variant="outline" onClick={() => setPendingSelection(null)}>继续编辑</Button><Button variant="outline" onClick={() => { choose(pendingSelection.id); setPendingSelection(null); }}>放弃修改</Button><Button onClick={() => { const nextNodes = nodes.map((n) => n.id === selectedId && draft ? { ...n, data: clone(assembledDraft()!) } : n); capture(); setNodes(nextNodes); changed(); choose(pendingSelection.id, nextNodes); setPendingSelection(null); }}>保存并切换</Button></footer></Modal>}
     {mappingOpen && <Modal title="连线与字段来源" onClose={() => setMappingOpen(false)}><p>连线表达处理顺序。输入绑定在目标节点抽屉中配置，可搜索全部可达上游字段。</p><p>字段类型或结构不兼容时，需显式使用字段映射／转换；接线不会自动猜测对应关系。</p><footer><Button variant="outline" onClick={() => { const edge = edges.find((e) => e.id === inspectedEdge); if (edge && !nodes.find((n) => n.id === edge.target)?.data.readOnly) { setMappingOpen(false); focusNode(edge.target); } }}>配置目标节点</Button><Button variant="outline" disabled={Boolean(nodes.find((n) => n.id === edges.find((e) => e.id === inspectedEdge)?.target)?.data.readOnly)} onClick={() => { capture(); setEdges((es) => es.filter((e) => e.id !== inspectedEdge)); changed(); setMappingOpen(false); setNotice("连线已删除，可撤销；请检查输入绑定"); }}>删除连线</Button><Button onClick={() => setMappingOpen(false)}>返回画布</Button></footer></Modal>}
     {schemaImport && <Modal title="导入已有 JSON Schema" onClose={() => setSchemaImport(false)}><p>粘贴项目经理已有的 Schema，先预览再替换当前输出列。嵌套字段会展开为平级列，文本列表会改为逗号分隔的文本；业务提示词由你核对。</p><Textarea aria-label="已有 JSON Schema" rows={7} placeholder={'{"type":"object","properties":{...}}'} value={schemaText} onChange={(event) => { setSchemaText(event.target.value); setImportPreview(null); setSchemaError(""); }} />{schemaError && <p className="p2-error" role="alert">{schemaError}</p>}{importPreview && <div className="p2-import-preview"><strong>将生成 {importPreview.fields.length} 个平级输出列</strong>{importPreview.changes.map((change) => <p key={change}>{change}</p>)}<div className="p2-check-fields">{importPreview.fields.map((field) => <span key={field.key}>{field.key}</span>)}</div><small>导入会替换现有列；删除或改名的已有下游引用将提示失效。</small></div>}<footer><Button variant="outline" onClick={() => setSchemaImport(false)}>取消</Button><Button variant="outline" onClick={() => { try { setImportPreview(importOutputSchema(schemaText)); setSchemaError(""); } catch (error) { setSchemaError(error instanceof Error ? error.message : "Schema 无法解析"); } }}>预览输出列</Button><Button disabled={!importPreview} onClick={() => { if (importPreview) { config("AI输出结构", JSON.stringify(importPreview.fields)); setSchemaImport(false); setNotice("输出列已导入，请核对提示词并保存配置"); } }}>应用输出列</Button></footer></Modal>}
-    {publishOpen && <Modal title="上线固定版本 · 交互演示" onClose={() => setPublishOpen(false)}><p>上线将固定当前草稿内容，后续修改继续保留为草稿。</p><div className="p2-callout">当前草稿 {revision} · 基础检查通过<br />此按钮仅演示上线交互，不会发布到任何系统。</div><footer><Button variant="outline" onClick={() => setPublishOpen(false)}>返回编排</Button><Button onClick={() => { setPublishOpen(false); setNotice("上线交互演示完成；未进行真实发布"); }}>确认上线演示</Button></footer></Modal>}
+    {publishOpen && <Modal title="上线固定版本" onClose={() => setPublishOpen(false)}><p>上线将固定当前草稿内容，后续修改继续保留为草稿。</p><div className="p2-callout">当前草稿 {revision} · 基础检查通过</div><footer><Button variant="outline" onClick={() => setPublishOpen(false)}>返回编排</Button><Button onClick={() => { setPublishOpen(false); setNotice("上线服务尚未连接，当前草稿已保留"); }}>确认上线</Button></footer></Modal>}
   </div>;
 }
 
