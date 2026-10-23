@@ -11,9 +11,9 @@ describe("independent capability retrieval", () => {
     expect(eligibleCandidates(candidates, request("视频")).every((item) => item.kind === "node")).toBe(true);
     expect(eligibleCandidates(candidates, request("视频", "flow")).every((item) => item.kind === "flow")).toBe(true);
   });
-  it("returns an exact identifier immediately, including grouped model identities", () => {
+  it("returns an exact identifier immediately, including independent model identities", () => {
     expect(directSearch(candidates, request("csv.unique"))[0].candidate.id).toBe("csv.unique");
-    expect(directSearch(candidates, request("ai-platform.qwen_tmp1"))[0].candidate.id).toBe("purpose.understanding");
+    expect(directSearch(candidates, request("ai-platform.qwen_tmp1"))[0].candidate.id).toBe("ai-platform.qwen_tmp1");
     expect(directSearch(candidates, request("ai-platform.qwen_tmp1"))[0].candidate.operatorId).toBe("ai-platform.qwen_tmp1");
     expect(directSearch(candidates, request("ai-platform.seedream.img2img"))[0].candidate.id).toBe("purpose.generation");
   });
@@ -51,6 +51,13 @@ describe("independent capability retrieval", () => {
     expect(hits[0].evidence?.join(" ")).toContain("transfer.tos_path → label.tos_path");
     const withoutEdges = flowSource.map((flow) => ({ ...flow, edges: [] }));
     expect(lineageSearch(candidates, withoutEdges, r)).toEqual([]);
+  });
+  it("keeps lineage evidence attached to the exact AI operator", () => {
+    const r = { ...request(""), sourceOperatorId: "vod.upload.tos" };
+    const labeling = flowSource.find((flow) => flow.id === "flow.video-labeling-demo")!;
+    const deepseekFlow = { ...labeling, id: "deepseek-only", nodes: labeling.nodes.map((node) => node.key === "label" ? { ...node, operatorId: "ai-platform.deepseek" } : node) };
+    const hits = lineageSearch(candidates, [deepseekFlow], r);
+    expect(hits.map((hit) => hit.candidate.operatorId)).toEqual(["ai-platform.deepseek"]);
   });
   it("explains real configuration differences without applying proposed changes", () => {
     const candidate = candidates.find((item) => item.id === customFlowV1.id)!;

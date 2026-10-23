@@ -5,8 +5,12 @@ import { selectCapabilityVersion } from "./capability-search";
 
 describe("dragging search results to the canvas", () => {
   it("keeps the exact model identity selected by search", () => {
-    const candidate = { ...candidates.find((item) => item.id === "purpose.understanding")!, operatorId: "ai-platform.qwen_tmp1" };
+    const candidate = candidates.find((item) => item.id === "ai-platform.qwen_tmp1")!;
     expect(resolveCapabilityDrop(capabilityDragData(candidate), candidates)?.operatorId).toBe("ai-platform.qwen_tmp1");
+  });
+  it("cannot change the operator identity carried by a catalog entry", () => {
+    const gemini = candidates.find((item) => item.id === "purpose.understanding")!;
+    expect(resolveCapabilityDrop(capabilityDragData({ ...gemini, operatorId: "ai-platform.qwen_tmp1" }), candidates)).toBeNull();
   });
   it("keeps an explicitly selected older Flow version", () => {
     const candidate = selectCapabilityVersion(candidates.find((item) => item.id === "custom_video_preview_demo")!, "V1")!;

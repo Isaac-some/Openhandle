@@ -1,4 +1,4 @@
-import { operators, publishedFlows, type FlowDefinition } from "@/app/lib/workflow";
+import { operators, publishedFlows, getOperator, type FlowDefinition } from "@/app/lib/workflow";
 import type { Capability } from "./capability-search";
 
 export const understandingIds = ["ai-platform.gemini", "ai-platform.deepseek", "ai-platform.qwen_tmp1"];
@@ -24,9 +24,13 @@ const labelingFlow: FlowDefinition = {
   edges: [{ source: "transfer", target: "label", sourceField: "tos_path", targetField: "tos_path" }],
 };
 export const flowSource = [...publishedFlows, customFlow, customFlowV1, labelingFlow];
+function getOperatorDescription(id: string) { return getOperator(id)?.description ?? "配置输入、提示词和输出列。"; }
 export const candidates: Capability[] = [
-  { id: "purpose.understanding", name: "AI 理解与标注", description: "选择 Gemini、DeepSeek 或 Qwen，配置提示词和输入字段。", domains: ["ai-labeling", "video", "image"], kind: "node", source: "engineering", operatorId: "ai-platform.gemini", purpose: "understanding" },
-  { id: "purpose.generation", name: "AI 图片生成", description: "选择图片生成模型，配置输入图片与提示词。", domains: ["image", "ai-labeling"], kind: "node", source: "engineering", operatorId: "ai-platform.seedream.img2img", purpose: "generation" },
+  ...understandingIds.map((operatorId) => {
+    const model = ({ "ai-platform.gemini": "Gemini", "ai-platform.deepseek": "DeepSeek", "ai-platform.qwen_tmp1": "Qwen" } as Record<string, string>)[operatorId];
+    return { id: operatorId === "ai-platform.gemini" ? "purpose.understanding" : operatorId, name: `AI 理解与标注 · ${model}`, description: getOperatorDescription(operatorId), domains: ["ai-labeling", "video", "image"], aliases: [model, operatorId, "内容标注", "打标签"], kind: "node" as const, source: "engineering" as const, operatorId, purpose: "understanding" as const };
+  }),
+  { id: "purpose.generation", name: "AI 图片生成", description: "使用 Seedream，配置输入图片与提示词。", domains: ["image", "ai-labeling"], kind: "node", source: "engineering", operatorId: "ai-platform.seedream.img2img", purpose: "generation" },
   ...operators.filter((operator) => !groupedIds.has(operator.id) && !["control.wait", "control.start", "control.split", "control.aggregate"].includes(operator.id)).map((operator) => ({ id: operator.id, name: operator.name, description: operator.description, domains: operator.domains, kind: "node" as const, source: "engineering" as const, operatorId: operator.id })),
   { id: "phase2.ratio", name: "比例分流", description: "按配置比例分配到多条互斥分支。", domains: ["control"], kind: "node", source: "engineering" },
   { id: "phase2.merge", name: "合流", description: "将字段结构一致的多路记录合并到下游。", domains: ["control"], kind: "node", source: "engineering" },

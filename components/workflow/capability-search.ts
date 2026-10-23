@@ -45,12 +45,6 @@ function corpus(candidate: Capability) {
     ...(candidate.aliases ?? aliases[candidate.id] ?? []),
     ...(candidate.flow?.nodes.map((node) => `${node.operatorId} ${getOperator(node.operatorId)?.name ?? ""} ${JSON.stringify(node.config ?? {})}`) ?? [])].map(normalize);
 }
-function candidateForQuery(candidate: Capability, query: string): Capability {
-  if (candidate.purpose !== "understanding") return candidate;
-  const models = [{ name: "gemini", id: "ai-platform.gemini" }, { name: "deepseek", id: "ai-platform.deepseek" }, { name: "qwen", id: "ai-platform.qwen_tmp1" }];
-  const matches = models.filter((model) => normalize(query).includes(model.name));
-  return matches.length === 1 ? { ...candidate, operatorId: matches[0].id } : candidate;
-}
 // One edit only, for short Latin identifiers. User input is never a regular expression.
 function nearWord(query: string, word: string): boolean {
   if (Math.abs(query.length - word.length) > 1) return false;
@@ -74,7 +68,7 @@ export function directSearch(candidates: Capability[], request: SearchRequest): 
     const partial = tokens.length > 1 && tokens.every((token) => terms.some((term) => term.includes(token)));
     const fuzzy = /^[a-z][a-z0-9._-]{3,63}$/.test(query) && terms.some((term) => term.split(/[^a-z0-9._-]+/).some((word) => nearWord(query, word)));
     if (!(exact || alias || contains || partial || fuzzy)) return [];
-    return [{ candidate: candidateForQuery(candidate, query), reason: exact ? "名称或 ID 精确匹配" : alias ? `别名匹配：${alias}` : fuzzy && !contains ? "近似拼写匹配，请核对名称与 ID" : "名称、简介或步骤中的文字匹配", score: exact ? 4 : alias ? 3 : contains ? 2 : 1 }];
+    return [{ candidate, reason: exact ? "名称或 ID 精确匹配" : alias ? `别名匹配：${alias}` : fuzzy && !contains ? "近似拼写匹配，请核对名称与 ID" : "名称、简介或步骤中的文字匹配", score: exact ? 4 : alias ? 3 : contains ? 2 : 1 }];
   }).sort((a, b) => b.score - a.score).map(({ candidate, reason }) => ({ candidate, reason }));
 }
 
@@ -94,7 +88,7 @@ export function relatedSearch(candidates: Capability[], request: SearchRequest, 
   return eligibleCandidates(candidates, request).flatMap((candidate) => {
     if (excludeIds.includes(candidate.id)) return [];
     const topic = matching.find((item) => item.document.test(corpus(candidate).join(" ")));
-    return topic ? [{ candidate: candidateForQuery(candidate, request.query), reason: `用途关联：${topic.label}` }] : [];
+    return topic ? [{ candidate, reason: `用途关联：${topic.label}` }] : [];
   });
 }
 export function lineageSearch(candidates: Capability[], flows: FlowDefinition[], request: SearchRequest): SearchHit[] {
@@ -104,7 +98,7 @@ export function lineageSearch(candidates: Capability[], flows: FlowDefinition[],
     const source = flow.nodes.find((node) => node.key === edge.source);
     const target = flow.nodes.find((node) => node.key === edge.target);
     if (source?.operatorId !== request.sourceOperatorId || !target) continue;
-    const candidate = eligibleCandidates(candidates, request).find((item) => item.operatorId === target.operatorId || (item.purpose === "understanding" && aliases[item.id]?.includes(target.operatorId)));
+    const candidate = eligibleCandidates(candidates, request).find((item) => item.operatorId === target.operatorId);
     if (!candidate) continue;
     const evidence = `${flow.name} · ${flow.id} · ${flow.version}：${source.key}${edge.sourceField ? `.${edge.sourceField}` : ""} → ${target.key}${edge.targetField ? `.${edge.targetField}` : ""}`;
     const hit = hits.get(candidate.id) ?? { candidate, reason: "已有样例流程中曾直接衔接；不代表运行成功", evidence: [] };
